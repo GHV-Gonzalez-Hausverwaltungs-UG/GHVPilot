@@ -371,7 +371,10 @@ export default function NeueBesichtigungsForm() {
           >
             Abbrechen
           </Link>
-          <Button className="bg-blue-600 text-white hover:bg-blue-500">
+          <Button
+            type="submit"
+            className="bg-blue-600 text-white hover:bg-blue-500"
+          >
             💾 Absenden
           </Button>
         </CardFooter>
