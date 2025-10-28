@@ -59,7 +59,13 @@ export default function InspectionsPage() {
       if (error) {
         console.error("Fehler beim Laden der inspections:", error);
       } else {
-        setInspections(data as InspectionRow[]);
+        // object[] -> object (erstes Element)
+        const normalized = (data || []).map((row: any) => ({
+          ...row,
+          object: Array.isArray(row.object) ? row.object[0] : row.object,
+        }));
+
+        setInspections(normalized as InspectionRow[]);
       }
       setLoading(false);
     }
@@ -177,12 +183,10 @@ export default function InspectionsPage() {
                     key={row.id}
                     className="border-b border-[#1f1f1f] hover:bg-[#1a1a1a]"
                   >
-                    {/* Objekt / Objektnr */}
                     <Td className="font-medium text-gray-100">
                       {row.object?.objektnr ?? "—"}
                     </Td>
 
-                    {/* Adresse */}
                     <Td className="text-gray-400">
                       <div className="leading-tight">
                         <div>{row.object?.strasse ?? "—"}</div>
@@ -192,13 +196,10 @@ export default function InspectionsPage() {
                       </div>
                     </Td>
 
-                    {/* Datum */}
                     <Td className="text-gray-300">{row.date ?? "—"}</Td>
 
-                    {/* Uhrzeit */}
                     <Td className="text-gray-300">{row.time ?? "—"}</Td>
 
-                    {/* Dringlichkeit */}
                     <Td>
                       <span
                         className={
@@ -213,12 +214,10 @@ export default function InspectionsPage() {
                       </span>
                     </Td>
 
-                    {/* Mangel */}
                     <Td className="max-w-[200px] text-gray-300">
                       <div className="truncate">{row.shortage ?? "—"}</div>
                     </Td>
 
-                    {/* Status (editable) */}
                     <Td>
                       <Select
                         value={row.status ?? "offen"}
@@ -241,15 +240,25 @@ export default function InspectionsPage() {
                     </Td>
 
                     {/* Aktionen */}
-                    <Td className="text-right">
+                    <Td className="text-right whitespace-nowrap">
                       <Button
+                        variant="ghost"
+                        className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 text-xs mr-2"
+                        onClick={() =>
+                          (window.location.href = `/inspections/${row.id}`)
+                        }
+                      >
+                        Details
+                      </Button>
+
+                      {/* <Button
                         variant="ghost"
                         className="text-red-400 hover:text-red-300 hover:bg-red-900/20 text-xs"
                         disabled={deletingId === row.id}
                         onClick={() => handleDelete(row.id)}
                       >
                         {deletingId === row.id ? "…" : "Löschen"}
-                      </Button>
+                      </Button> */}
                     </Td>
                   </tr>
                 ))

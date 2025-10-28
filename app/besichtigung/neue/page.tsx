@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Card,
@@ -34,15 +33,14 @@ import Link from "next/link";
 
 export default function NeueBesichtigungsForm() {
   const [notes, setNotes] = React.useState(false);
+  const [objects, setObjects] = React.useState<any[]>([]);
+  const [loadingObjects, setLoadingObjects] = React.useState(true);
+
   const [formData, setFormData] = React.useState<formdata>({
     object: "",
     floor: "",
     entrance: "",
-    address: {
-      street: "",
-      city: "",
-      zip: "",
-    },
+    address: { street: "", city: "", zip: "" },
     inspector: "",
     responsibility: "",
     measures: "",
@@ -53,42 +51,34 @@ export default function NeueBesichtigungsForm() {
     time: dayjs().format("HH:mm"),
     files: undefined,
   });
-  const [objects, setObjects] = React.useState<any[]>([]);
-  const [loadingObjects, setLoadingObjects] = React.useState(true);
+
+  // 🔄 Formular-Handler
   const handleFormChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >
   ) => {
     const { name, value } = e.target;
-
     if (name in formData.address) {
       setFormData((prev) => ({
         ...prev,
-        address: {
-          ...prev.address,
-          [name]: value,
-        },
-        date: formData.date || dayjs().format("YYYY-MM-DD"),
+        address: { ...prev.address, [name]: value },
       }));
     } else {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: value,
-      }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
+  // 💾 Submit
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     try {
-      // 1️⃣ Neue Inspection speichern
       const { data: inspectionData, error: inspectionError } = await supabase
         .from("inspections")
         .insert([
           {
-            object_id: formData.object, // das ist die UUID aus "objects"
+            object_id: formData.object,
             floor: formData.floor,
             entrance: formData.entrance,
             responsibility: formData.responsibility,
@@ -96,7 +86,7 @@ export default function NeueBesichtigungsForm() {
             shortage: formData.shortage,
             measures: formData.measures,
             priority: formData.priority,
-            date: dayjs(formData.date, "DD.MM.YYYY").format("YYYY-MM-DD"),
+            date: formData.date,
             time: formData.time,
             notes: formData.notes || null,
             status: formData.status || "offen",
@@ -106,35 +96,28 @@ export default function NeueBesichtigungsForm() {
         .single();
 
       if (inspectionError) throw inspectionError;
-
       const inspectionId = inspectionData.id;
-      console.log("Inspection created:", inspectionId);
 
-      // 2️⃣ Bilder hochladen (falls vorhanden)
-      if (formData.files && formData.files.length > 0) {
+      if (formData.files?.length) {
         const urls = await uploadPictures(formData.files);
-
-        // 3️⃣ Bilder in photos-Tabelle speichern
         const photoRecords = urls.map((url) => ({
           inspection_id: inspectionId,
           url,
-          description: null,
         }));
-
         const { error: photoError } = await supabase
           .from("photos")
           .insert(photoRecords);
-
         if (photoError) throw photoError;
       }
 
-      alert("Besichtigung erfolgreich gespeichert!");
+      alert("✅ Besichtigung erfolgreich gespeichert!");
     } catch (error) {
       console.error("Fehler beim Speichern:", error);
-      alert("Fehler beim Speichern der Besichtigung!");
+      alert("❌ Fehler beim Speichern der Besichtigung!");
     }
   }
 
+  // 📦 Objekte laden
   React.useEffect(() => {
     async function loadObjects() {
       const { data, error } = await supabase
@@ -142,62 +125,52 @@ export default function NeueBesichtigungsForm() {
         .select("id, objektnr, strasse, ort, plz")
         .order("objektnr", { ascending: true });
 
-      if (error) {
-        console.error("Fehler beim Laden der Objekte:", error);
-      } else {
-        setObjects(data || []);
-      }
+      if (!error && data) setObjects(data);
       setLoadingObjects(false);
     }
-
     loadObjects();
   }, []);
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex justify-center items-start p-6 bg-background text-foreground min-h-screen"
-    >
-      <Card className="w-full max-w-3xl border border-border bg-card shadow-lg">
+    <main className="min-h-screen bg-[#0a0a0a] text-gray-100 flex justify-center items-start p-6">
+      <Card className="w-full max-w-3xl bg-[#111] border border-[#1f1f1f] text-gray-100 shadow-xl">
         <CardHeader>
-          <CardTitle className="text-2xl font-semibold text-primary flex items-center gap-2">
-            Besichtigung erfassen
+          <CardTitle className="text-2xl font-semibold text-blue-400">
+            🏢 Besichtigung erfassen
           </CardTitle>
         </CardHeader>
 
         <CardContent className="space-y-8">
-          {/* Abschnitt: Objektdaten */}
+          {/* 🏠 Objektdaten */}
           <section>
-            <h2 className="text-sm uppercase tracking-wide text-muted-foreground mb-2">
+            <h2 className="text-sm uppercase tracking-wide text-gray-400 mb-2">
               Objektdaten
             </h2>
-            <div className="grid md:grid-cols-2 gap-4 bg-muted/30 p-4 rounded-lg">
+            <div className="grid md:grid-cols-2 gap-4 bg-[#1a1a1a] p-4 rounded-lg">
               <Select
                 disabled={loadingObjects}
                 onValueChange={(value) => {
                   const selected = objects.find((obj) => obj.id === value);
-
-                  if (selected) {
+                  if (selected)
                     setFormData((prev) => ({
                       ...prev,
-                      object: value, // UUID des Objekts
+                      object: value,
                       address: {
                         street: selected.strasse,
                         city: selected.ort,
                         zip: selected.plz,
                       },
                     }));
-                  }
                 }}
               >
-                <SelectTrigger className="w-full md:col-span-2 truncate">
+                <SelectTrigger className="w-full md:col-span-2 bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100">
                   <SelectValue
                     placeholder={
                       loadingObjects ? "Lade Objekte..." : "Objekt auswählen"
                     }
                   />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-[#1a1a1a] text-gray-100 border border-[#2a2a2a]">
                   <SelectGroup>
                     <SelectLabel>Objekte</SelectLabel>
                     {objects.map((obj) => (
@@ -208,127 +181,107 @@ export default function NeueBesichtigungsForm() {
                   </SelectGroup>
                 </SelectContent>
               </Select>
+
               <Field
                 label="Straße"
                 name="street"
-                placeholder="Musterstraße 10"
-                value={formData.address.street ?? ""}
+                value={formData.address.street}
                 onChange={handleFormChange}
               />
-
               <Field
                 label="Ort"
                 name="city"
-                placeholder="München"
-                value={formData.address.city ?? ""}
+                value={formData.address.city}
                 onChange={handleFormChange}
               />
-
               <Field
                 label="Etage"
                 name="floor"
                 placeholder="3. OG"
-                value={formData.floor ?? ""}
+                value={formData.floor}
                 onChange={handleFormChange}
               />
               <Field
                 label="Hauseingang"
                 name="entrance"
                 placeholder="A"
-                value={formData.entrance ?? ""}
+                value={formData.entrance}
                 onChange={handleFormChange}
               />
-
               <Field
                 label="Zuständigkeit"
                 name="responsibility"
-                placeholder="Hausmeister, Firma XY …"
-                value={formData.responsibility ?? ""}
+                placeholder="Hausmeister, Firma XY"
+                value={formData.responsibility}
                 onChange={handleFormChange}
               />
             </div>
           </section>
 
-          <Separator className="bg-border/50" />
+          <Separator className="bg-[#222]" />
 
-          {/* Abschnitt: Mangelbeschreibung */}
+          {/* ⚙️ Mangelbeschreibung */}
           <section>
-            <h2 className="text-sm uppercase tracking-wide text-muted-foreground mb-2">
+            <h2 className="text-sm uppercase tracking-wide text-gray-400 mb-2">
               Mangelaufnahme
             </h2>
-            <div className="space-y-4 bg-muted/30 p-4 rounded-lg">
-              <div className="space-y-2">
-                <Label htmlFor="mangel">Mangel</Label>
-                <Textarea
-                  id="mangel"
-                  placeholder="z. B. Lampe im Treppenhaus defekt"
-                  className="bg-background/60 border-border text-foreground"
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      shortage: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="massnahmen">Maßnahmen</Label>
-                <Textarea
-                  id="massnahmen"
-                  placeholder="Reparatur beauftragen, Leuchtmittel tauschen …"
-                  className="bg-background/60 border-border text-foreground"
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      measures: e.target.value,
-                    }))
-                  }
-                />
-              </div>
+            <div className="space-y-4 bg-[#1a1a1a] p-4 rounded-lg">
+              <FieldArea
+                label="Mangel"
+                name="mangel"
+                placeholder="z. B. Lampe im Treppenhaus defekt"
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setFormData((p) => ({ ...p, shortage: e.target.value }))
+                }
+              />
+              <FieldArea
+                label="Maßnahmen"
+                name="massnahmen"
+                placeholder="Reparatur beauftragen, Leuchtmittel tauschen …"
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                  setFormData((p) => ({ ...p, measures: e.target.value }))
+                }
+              />
 
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
                 <div className="flex flex-col w-full space-y-2">
-                  <Label htmlFor="dringlichkeit">Dringlichkeit</Label>
+                  <Label className="text-gray-300">Dringlichkeit</Label>
                   <Select
-                    name="dringlichkeit"
                     value={formData.priority}
-                    onValueChange={(value) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        priority: value as "hoch" | "mittel" | "niedrig",
+                    onValueChange={(v) =>
+                      setFormData((p) => ({
+                        ...p,
+                        priority: v as "hoch" | "mittel" | "niedrig",
                       }))
                     }
                   >
-                    <SelectTrigger className="w-full bg-background/60 border-border">
+                    <SelectTrigger className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100">
                       <SelectValue placeholder="Bitte wählen …" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-[#1a1a1a] border border-[#2a2a2a] text-gray-100">
                       <SelectItem value="hoch">Hoch</SelectItem>
                       <SelectItem value="mittel">Mittel</SelectItem>
                       <SelectItem value="niedrig">Niedrig</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Label htmlFor="status">Status</Label>
+
+                  <Label className="text-gray-300">Status</Label>
                   <Select
-                    name="status"
                     value={formData.status}
-                    onValueChange={(value) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        status: value as
-                          | "offen"
-                          | "in Bearbeitung"
-                          | "erledigt",
+                    onValueChange={(v) =>
+                      setFormData((p) => ({
+                        ...p,
+                        status: v as "offen" | "in Bearbeitung" | "erledigt",
                       }))
                     }
                   >
-                    <SelectTrigger className="w-full bg-background/60 border-border">
+                    <SelectTrigger className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100">
                       <SelectValue placeholder="Bitte wählen …" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-[#1a1a1a] border border-[#2a2a2a] text-gray-100">
                       <SelectItem value="offen">Offen</SelectItem>
                       <SelectItem value="in Bearbeitung">
-                        in Bearbeitung
+                        In Bearbeitung
                       </SelectItem>
                       <SelectItem value="erledigt">Erledigt</SelectItem>
                     </SelectContent>
@@ -336,18 +289,19 @@ export default function NeueBesichtigungsForm() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="photo">Fotos hinzufügen</Label>
+                  <Label className="text-gray-300">Fotos hinzufügen</Label>
                   <Input
                     id="photo"
                     name="photo"
                     type="file"
                     accept="image/*"
                     multiple
+                    className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100 file:text-gray-400"
                     onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
+                      setFormData((p) => ({
+                        ...p,
                         files: [
-                          ...(prev.files || []),
+                          ...(p.files || []),
                           ...(e.target.files ? Array.from(e.target.files) : []),
                         ],
                       }))
@@ -358,35 +312,35 @@ export default function NeueBesichtigungsForm() {
             </div>
           </section>
 
-          <Separator className="bg-border/50" />
+          <Separator className="bg-[#222]" />
 
-          {/* Abschnitt Bilder Vorschau */}
-          {formData.files && formData.files.length > 0 && (
+          {/* 🖼 Bilder-Vorschau */}
+          {formData.files?.length ? (
             <section>
-              <h2 className="text-sm uppercase tracking-wide text-muted-foreground mb-2">
+              <h2 className="text-sm uppercase tracking-wide text-gray-400 mb-2">
                 Bildvorschau
               </h2>
               <ImagePreviewGrid
-                files={formData.files ?? []}
+                files={formData.files}
                 setFormData={setFormData}
               />
             </section>
-          )}
+          ) : null}
 
-          <Separator className="bg-border/50" />
+          <Separator className="bg-[#222]" />
 
-          {/* Abschnitt: Notiz */}
+          {/* 🗒 Notizen */}
           <section>
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-sm uppercase tracking-wide text-muted-foreground">
+              <h2 className="text-sm uppercase tracking-wide text-gray-400">
                 Zusätzliche Notiz
               </h2>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
+                className="border border-[#2a2a2a] text-gray-300 hover:bg-[#222]"
                 onClick={() => setNotes(!notes)}
-                className="border-border/70"
               >
                 {notes ? "❌ Entfernen" : "📝 Hinzufügen"}
               </Button>
@@ -401,9 +355,8 @@ export default function NeueBesichtigungsForm() {
                   transition={{ duration: 0.3 }}
                 >
                   <Textarea
-                    id="notiz"
                     placeholder="z. B. Bewohner informiert, Rückruf geplant …"
-                    className="bg-background/60 border-border text-foreground"
+                    className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100"
                   />
                 </motion.div>
               )}
@@ -411,45 +364,48 @@ export default function NeueBesichtigungsForm() {
           </section>
         </CardContent>
 
-        <CardFooter className="flex justify-end gap-3 mt-4">
-          <Link href="/" className="hover:bg-muted/50">
+        <CardFooter className="flex justify-end gap-3 mt-4 border-t border-[#1f1f1f] pt-4">
+          <Link
+            href="/inspections"
+            className="text-gray-400 hover:text-gray-200 text-sm"
+          >
             Abbrechen
           </Link>
-          <Button
-            type="submit"
-            className="bg-primary text-primary-foreground hover:bg-primary/80"
-          >
+          <Button className="bg-blue-600 text-white hover:bg-blue-500">
             💾 Absenden
           </Button>
         </CardFooter>
       </Card>
-      {/* <pre className="whitespace-pre-wrap bg-muted/10 p-2 rounded border border-border text-sm">
-        {JSON.stringify(formData, null, 2)}
-      </pre> */}
-    </form>
+    </main>
   );
 }
 
-/* Hilfs-Komponente */
-type FieldProps = {
-  label: string;
-  name: string;
-  placeholder?: string;
-  value?: string;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-};
-
-function Field({ label, name, placeholder, value, onChange }: FieldProps) {
+// 🔹 Eingabefeld (Text)
+function Field({ label, name, placeholder, value, onChange }: any) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={name}>{label}</Label>
+      <Label className="text-gray-300">{label}</Label>
       <Input
         id={name}
         name={name}
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        className="bg-background/60 border-border text-foreground"
+        className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100 placeholder:text-gray-500"
+      />
+    </div>
+  );
+}
+
+// 🔹 Textarea
+function FieldArea({ label, placeholder, onChange }: any) {
+  return (
+    <div className="space-y-2">
+      <Label className="text-gray-300">{label}</Label>
+      <Textarea
+        placeholder={placeholder}
+        onChange={onChange}
+        className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100 placeholder:text-gray-500"
       />
     </div>
   );

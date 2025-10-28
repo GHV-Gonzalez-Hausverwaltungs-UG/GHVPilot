@@ -59,7 +59,14 @@ export default function InspectionsPage() {
       if (error) {
         console.error("Fehler beim Laden der inspections:", error);
       } else {
-        setInspections(data as InspectionRow[]);
+        // Supabase liefert object als Array → wir normalisieren es
+        const normalized = (data || []).map((row: any) => ({
+          ...row,
+          object: Array.isArray(row.object) ? row.object[0] : row.object,
+        }));
+
+        // Explizit auf unknown casten, dann auf InspectionRow[]
+        setInspections(normalized as unknown as InspectionRow[]);
       }
       setLoading(false);
     }
@@ -242,6 +249,15 @@ export default function InspectionsPage() {
 
                     {/* Aktionen */}
                     <Td className="text-right">
+                      <Button
+                        variant="ghost"
+                        className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 text-xs mr-2"
+                        onClick={() =>
+                          (window.location.href = `/inspections/${row.id}`)
+                        }
+                      >
+                        Details
+                      </Button>
                       <Button
                         variant="ghost"
                         className="text-red-400 hover:text-red-300 hover:bg-red-900/20 text-xs"
