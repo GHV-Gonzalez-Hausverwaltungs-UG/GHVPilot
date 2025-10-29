@@ -212,20 +212,17 @@ const BesichtigungPDF = ({ inspection }: { inspection: any }) => (
 
 export async function GET(
   request: NextRequest,
-  context: { params: { invoiceID: string } }
+  context: { params: { invoiceID: string } | Promise<{ invoiceID: string }> }
 ) {
-  // 1. Hole das Promise-Objekt für params aus dem context
-  const paramsPromise = context.params;
+  // egal ob Promise oder Objekt → wir lösen beides sauber auf
+  const actualParams =
+    context.params instanceof Promise ? await context.params : context.params;
 
-  // 2. WICHTIG: Verwende 'await', um das Promise aufzulösen und die tatsächlichen Params zu erhalten
-  const actualParams = await paramsPromise;
-
-  // 3. Greife auf die Eigenschaft 'invoiceID' zu
   const id = actualParams.invoiceID;
 
   if (!id) {
     // Dieser Block wird nun seltener erreicht, da die ID korrekt abgerufen wird
-    console.error("Empfangene Context:", context);
+    console.error("Empfangene Context:", actualParams);
     return NextResponse.json(
       { message: "Error: invoiceID is missing" },
       { status: 400 }
