@@ -14,7 +14,7 @@ export async function downloadPdf(inspection: any) {
         photos: inspection.photos?.map((p: any) => p.url) ?? [],
       }),
     });
-
+    console.log(res.headers.get("content-type"));
     if (!res.ok) {
       const text = await res.text();
       console.error("❌ Server-Fehler:", text);

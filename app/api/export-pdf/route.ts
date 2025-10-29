@@ -1,4 +1,3 @@
-export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import { generateBesichtigungPDF } from "@/lib/pdf/renderPDF";
