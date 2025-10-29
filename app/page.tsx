@@ -37,6 +37,10 @@ export default function InspectionsPage() {
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
+  const [filterField, setFilterField] = React.useState<
+    "object" | "date" | "status" | "none"
+  >("none");
+  const [filterValue, setFilterValue] = React.useState("");
 
   // 1. Daten laden
   React.useEffect(() => {
@@ -156,7 +160,44 @@ export default function InspectionsPage() {
           <h1 className="text-xl font-semibold text-blue-400">
             🗂 Alle Besichtigungen
           </h1>
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <Select
+              value={filterField}
+              onValueChange={(val) => setFilterField(val as any)}
+            >
+              <SelectTrigger className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100 h-8 px-2 py-1 text-xs w-[160px]">
+                <SelectValue placeholder="Filterfeld" />
+              </SelectTrigger>
+              <SelectContent className="bg-[#1a1a1a] border border-[#2a2a2a] text-gray-100 text-xs">
+                <SelectItem value="none">Kein Filter</SelectItem>
+                <SelectItem value="object">Objekt</SelectItem>
+                <SelectItem value="date">Datum</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+              </SelectContent>
+            </Select>
 
+            {filterField !== "none" && (
+              <input
+                type="text"
+                value={filterValue}
+                onChange={(e) => setFilterValue(e.target.value)}
+                placeholder={`Nach ${filterField} filtern...`}
+                className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100 h-8 px-2 py-1 text-xs rounded-md w-[200px]"
+              />
+            )}
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-gray-400 hover:text-white text-xs"
+              onClick={() => {
+                setFilterValue("");
+                setFilterField("none");
+              }}
+            >
+              Filter zurücksetzen
+            </Button>
+          </div>
           <Button
             className="bg-blue-600 text-white hover:bg-blue-500"
             onClick={() => {
@@ -198,7 +239,16 @@ export default function InspectionsPage() {
                 Auswahl Löschen
               </Button>
 
-              <Button className="text-emerald-400 hover:bg-emerald-400/10 cursor-pointer">
+              <Button
+                className="text-emerald-400 hover:bg-emerald-400/10 cursor-pointer"
+                onClick={() => {
+                  if (selectedIds.length === 0)
+                    return alert("Keine Besichtigungen ausgewählt.");
+
+                  const url = `/api/combinePdf?ids=${selectedIds.join(",")}`;
+                  window.open(url, "_blank");
+                }}
+              >
                 <SaveIcon />
                 Auswahl Exportieren
               </Button>
@@ -245,94 +295,115 @@ export default function InspectionsPage() {
                   </td>
                 </tr>
               ) : (
-                inspections.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-b border-[#1f1f1f] hover:bg-[#1a1a1a]"
-                  >
-                    <Td>
-                      <Checkbox
-                        className="cursor-pointer"
-                        checked={selectedIds.includes(row.id)}
-                        onCheckedChange={() => toggleOne(row.id)}
-                      />
-                    </Td>
-                    {/* Objekt / Objektnr */}
-                    <Td className="font-medium text-gray-100">
-                      {row.object?.objektnr ?? "—"}
-                    </Td>
+                inspections
+                  .filter((row) => {
+                    if (filterField === "none" || !filterValue.trim())
+                      return true;
 
-                    {/* Adresse */}
-                    <Td className="text-gray-400">
-                      <div className="leading-tight">
-                        <div>{row.object?.strasse ?? "—"}</div>
-                        <div className="text-xs text-gray-500">
-                          {row.object?.ort ?? "—"}
+                    const val = filterValue.toLowerCase();
+                    if (filterField === "object")
+                      return (
+                        row.object?.strasse?.toLowerCase().includes(val) ||
+                        row.object?.ort?.toLowerCase().includes(val) ||
+                        String(row.object?.objektnr ?? "").includes(val)
+                      );
+
+                    if (filterField === "date")
+                      return (row.date ?? "").toLowerCase().includes(val);
+
+                    if (filterField === "status")
+                      return (row.status ?? "").toLowerCase().includes(val);
+
+                    return true;
+                  })
+                  .map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-[#1f1f1f] hover:bg-[#1a1a1a]"
+                    >
+                      <Td>
+                        <Checkbox
+                          className="cursor-pointer"
+                          checked={selectedIds.includes(row.id)}
+                          onCheckedChange={() => toggleOne(row.id)}
+                        />
+                      </Td>
+                      {/* Objekt / Objektnr */}
+                      <Td className="font-medium text-gray-100">
+                        {row.object?.objektnr ?? "—"}
+                      </Td>
+
+                      {/* Adresse */}
+                      <Td className="text-gray-400">
+                        <div className="leading-tight">
+                          <div>{row.object?.strasse ?? "—"}</div>
+                          <div className="text-xs text-gray-500">
+                            {row.object?.ort ?? "—"}
+                          </div>
                         </div>
-                      </div>
-                    </Td>
+                      </Td>
 
-                    {/* Datum */}
-                    <Td className="text-gray-300">{row.date ?? "—"}</Td>
+                      {/* Datum */}
+                      <Td className="text-gray-300">{row.date ?? "—"}</Td>
 
-                    {/* Uhrzeit */}
-                    <Td className="text-gray-300">{row.time ?? "—"}</Td>
+                      {/* Uhrzeit */}
+                      <Td className="text-gray-300">{row.time ?? "—"}</Td>
 
-                    {/* Dringlichkeit */}
-                    <Td>
-                      <span
-                        className={
-                          row.priority === "hoch"
-                            ? "text-red-400 bg-red-900/30 text-xs px-2 py-1 rounded"
-                            : row.priority === "mittel"
-                            ? "text-yellow-300 bg-yellow-900/30 text-xs px-2 py-1 rounded"
-                            : "text-green-300 bg-green-900/30 text-xs px-2 py-1 rounded"
-                        }
-                      >
-                        {row.priority ?? "—"}
-                      </span>
-                    </Td>
+                      {/* Dringlichkeit */}
+                      <Td>
+                        <span
+                          className={
+                            row.priority === "hoch"
+                              ? "text-red-400 bg-red-900/30 text-xs px-2 py-1 rounded"
+                              : row.priority === "mittel"
+                              ? "text-yellow-300 bg-yellow-900/30 text-xs px-2 py-1 rounded"
+                              : "text-green-300 bg-green-900/30 text-xs px-2 py-1 rounded"
+                          }
+                        >
+                          {row.priority ?? "—"}
+                        </span>
+                      </Td>
 
-                    {/* Mangel */}
-                    <Td className="max-w-[200px] text-gray-300">
-                      <div className="truncate">{row.shortage ?? "—"}</div>
-                    </Td>
+                      {/* Mangel */}
+                      <Td className="max-w-[200px] text-gray-300">
+                        <div className="truncate">{row.shortage ?? "—"}</div>
+                      </Td>
 
-                    {/* Status (editable) */}
-                    <Td>
-                      <Select
-                        value={row.status ?? "offen"}
-                        onValueChange={(newStatus) =>
-                          handleStatusChange(row.id, newStatus)
-                        }
-                        disabled={updatingId === row.id}
-                      >
-                        <SelectTrigger className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100 h-8 px-2 py-1 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#1a1a1a] border border-[#2a2a2a] text-gray-100 text-xs">
-                          <SelectItem value="offen">offen</SelectItem>
-                          <SelectItem value="in_bearbeitung">
-                            in Bearbeitung
-                          </SelectItem>
-                          <SelectItem value="erledigt">erledigt</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </Td>
+                      {/* Status (editable) */}
+                      <Td>
+                        <Select
+                          value={row.status ?? "offen"}
+                          onValueChange={(newStatus) =>
+                            handleStatusChange(row.id, newStatus)
+                          }
+                          disabled={updatingId === row.id}
+                        >
+                          <SelectTrigger className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100 h-8 px-2 py-1 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#1a1a1a] border border-[#2a2a2a] text-gray-100 text-xs">
+                            <SelectItem value="offen">offen</SelectItem>
+                            <SelectItem value="in_bearbeitung">
+                              in Bearbeitung
+                            </SelectItem>
+                            <SelectItem value="erledigt">erledigt</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </Td>
 
-                    {/* Aktionen */}
-                    <Td className="text-right">
-                      <Button
-                        className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 text-xs"
-                        onClick={() =>
-                          (window.location.href = `/inspections/${row.id}`)
-                        }
-                      >
-                        Details
-                      </Button>
-                    </Td>
-                  </tr>
-                ))
+                      {/* Aktionen */}
+                      <Td className="text-right">
+                        <Button
+                          className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 text-xs"
+                          onClick={() =>
+                            (window.location.href = `/inspections/${row.id}`)
+                          }
+                        >
+                          Details
+                        </Button>
+                      </Td>
+                    </tr>
+                  ))
               )}
             </tbody>
           </table>
