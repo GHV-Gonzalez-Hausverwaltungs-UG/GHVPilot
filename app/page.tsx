@@ -3,6 +3,7 @@
 import * as React from "react";
 import { supabase } from "@/lib/supabase/supabaseclient";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectTrigger,
@@ -154,6 +155,9 @@ export default function InspectionsPage() {
           <table className="w-full text-sm border-collapse min-w-[700px]">
             <thead>
               <tr className="text-left bg-[#1a1a1a] text-gray-300">
+                <Th>
+                  <Checkbox id="select-all" />
+                </Th>
                 <Th>Objekt</Th>
                 <Th>Adresse</Th>
                 <Th>Datum</Th>
@@ -184,6 +188,9 @@ export default function InspectionsPage() {
                     key={row.id}
                     className="border-b border-[#1f1f1f] hover:bg-[#1a1a1a]"
                   >
+                    <Td>
+                      <Checkbox id="terms" />
+                    </Td>
                     {/* Objekt / Objektnr */}
                     <Td className="font-medium text-gray-100">
                       {row.object?.objektnr ?? "—"}

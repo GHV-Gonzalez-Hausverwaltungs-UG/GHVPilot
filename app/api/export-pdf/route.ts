@@ -1,4 +1,6 @@
 export const runtime = "nodejs";
+export const preferredRegion = "iad1";
+export const dynamic = "force-dynamic";
 
 import { generateBesichtigungPDF } from "@/lib/pdf/renderPDF";
 
