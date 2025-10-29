@@ -3,11 +3,14 @@ export const runtime = "nodejs";
 
 import { generateBesichtigungPDF } from "@/lib/pdf/renderPDF";
 
+export async function GET() {
+  return new Response("PDF export API online", { status: 200 });
+}
+
 export async function POST(req: Request) {
   try {
     const data = await req.json();
     const pdfBuffer = await generateBesichtigungPDF(data);
-
     const uint8 = new Uint8Array(pdfBuffer);
 
     return new Response(uint8, {
