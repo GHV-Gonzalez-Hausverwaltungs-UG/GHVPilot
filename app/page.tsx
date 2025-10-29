@@ -13,6 +13,9 @@ import {
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { SaveIcon, TrashIcon } from "lucide-react";
+import { downloadPdf } from "@/lib/pdf/downloadPDF";
+import { motion, AnimatePresence } from "framer-motion";
 
 type InspectionRow = {
   id: string;
@@ -33,6 +36,7 @@ export default function InspectionsPage() {
   const [loading, setLoading] = React.useState(true);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
 
   // 1. Daten laden
   React.useEffect(() => {
@@ -130,6 +134,21 @@ export default function InspectionsPage() {
     setDeletingId(null);
   }
 
+  function toggleAll(checked: boolean) {
+    if (checked) {
+      setSelectedIds(inspections.map((i) => i.id));
+    } else {
+      setSelectedIds([]);
+    }
+  }
+
+  // Einzelne Checkbox togglen
+  function toggleOne(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-gray-100 p-6">
       <Card className="bg-[#111] border border-[#1f1f1f] shadow-xl p-4">
@@ -150,13 +169,64 @@ export default function InspectionsPage() {
         </div>
 
         <Separator className="bg-[#222] mb-4" />
+        <AnimatePresence>
+          {selectedIds.length > 0 && (
+            <motion.div
+              layout
+              key="bulk-actions"
+              initial={{ opacity: 0, y: -10, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: "auto" }}
+              exit={{ opacity: 0, y: -10, height: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="flex w-full gap-2 my-4 overflow-hidden"
+            >
+              <Button
+                className="text-red-400 hover:bg-red-400/10 cursor-pointer"
+                onClick={async () => {
+                  const sicher = confirm(
+                    `${selectedIds.length} Besichtigung(en) löschen?`
+                  );
+                  if (!sicher) return;
 
+                  for (const id of selectedIds) {
+                    await handleDelete(id);
+                  }
+                  setSelectedIds([]);
+                }}
+              >
+                <TrashIcon />
+                Auswahl Löschen
+              </Button>
+
+              <Button
+                className="text-emerald-400 hover:bg-emerald-400/10 cursor-pointer"
+                onClick={async () => {
+                  for (const id of selectedIds) {
+                    const insp = inspections.find((i) => i.id === id);
+                    if (insp) await downloadPdf(insp);
+                  }
+                }}
+              >
+                <SaveIcon />
+                Auswahl Exportieren
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="w-full overflow-x-auto">
           <table className="w-full text-sm border-collapse min-w-[700px]">
             <thead>
               <tr className="text-left bg-[#1a1a1a] text-gray-300">
                 <Th>
-                  <Checkbox id="select-all" />
+                  <Checkbox
+                    className="cursor-pointer"
+                    id="select-all"
+                    checked={
+                      inspections.length > 0 &&
+                      selectedIds.length === inspections.length
+                    }
+                    onCheckedChange={(checked) => toggleAll(Boolean(checked))}
+                  />
                 </Th>
                 <Th>Objekt</Th>
                 <Th>Adresse</Th>
@@ -165,7 +235,7 @@ export default function InspectionsPage() {
                 <Th>Dringlichkeit</Th>
                 <Th>Mangel</Th>
                 <Th>Status</Th>
-                <Th className="text-right">Aktionen</Th>
+                <Th className="text-right pr-6">Details</Th>
               </tr>
             </thead>
 
@@ -189,7 +259,11 @@ export default function InspectionsPage() {
                     className="border-b border-[#1f1f1f] hover:bg-[#1a1a1a]"
                   >
                     <Td>
-                      <Checkbox id="terms" />
+                      <Checkbox
+                        className="cursor-pointer"
+                        checked={selectedIds.includes(row.id)}
+                        onCheckedChange={() => toggleOne(row.id)}
+                      />
                     </Td>
                     {/* Objekt / Objektnr */}
                     <Td className="font-medium text-gray-100">
@@ -257,21 +331,12 @@ export default function InspectionsPage() {
                     {/* Aktionen */}
                     <Td className="text-right">
                       <Button
-                        variant="ghost"
-                        className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 text-xs mr-2"
+                        className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 text-xs"
                         onClick={() =>
                           (window.location.href = `/inspections/${row.id}`)
                         }
                       >
                         Details
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="text-red-400 hover:text-red-300 hover:bg-red-900/20 text-xs"
-                        disabled={deletingId === row.id}
-                        onClick={() => handleDelete(row.id)}
-                      >
-                        {deletingId === row.id ? "…" : "Löschen"}
                       </Button>
                     </Td>
                   </tr>

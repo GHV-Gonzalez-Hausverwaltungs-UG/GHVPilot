@@ -1,29 +1,31 @@
+// lib/pdf/downloadPdf.ts
 export async function downloadPdf(inspection: any) {
-  // 👇 sichere absolute URL ermitteln
-  const baseUrl = process.env.NEXT_PUBLIC_VERCEL_URL
-    ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-    : window.location.origin;
+  const payload = {
+    object:
+      inspection.object?.strasse ??
+      `Objekt ${inspection.object?.objektnr ?? ""}`.trim(),
+    date: inspection.date,
+    status: inspection.status,
+    priority: inspection.priority,
+    shortage: inspection.shortage,
+    measures: inspection.measures,
+    address: {
+      street: inspection.object?.strasse,
+      city: inspection.object?.ort,
+      zip: inspection.object?.plz,
+    },
+    photos: inspection.photos?.map((p: any) => p.url) ?? [],
+  };
 
-  console.log("POSTing to:", `${baseUrl}/api/export-pdf`);
-  console.log("🧠 Runtime check:", process.versions.node);
-  const res = await fetch(`${baseUrl}/api/export-pdf`, {
+  const res = await fetch("/api/export-pdf", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      object:
-        inspection.object?.strasse ?? `Objekt ${inspection.object?.objektnr}`,
-      date: inspection.date,
-      priority: inspection.priority,
-      status: inspection.status,
-      shortage: inspection.shortage,
-      measures: inspection.measures,
-      photos: inspection.photos?.map((p: any) => p.url) ?? [],
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
-    console.error("Server-Fehler:", res.status, await res.text());
-    alert(`Fehler beim PDF-Export (${res.status})`);
+    console.error("Fehler beim PDF Export", res.status, await res.text());
+    alert("PDF konnte nicht erstellt werden");
     return;
   }
 

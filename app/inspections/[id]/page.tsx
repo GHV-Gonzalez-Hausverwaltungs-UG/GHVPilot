@@ -15,7 +15,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import Image from "next/image";
-import { downloadPdf } from "@/lib/pdf/downloadPDF";
+import { downloadPdf } from "@/lib/pdf/downloadPdf";
 
 type InspectionDetail = {
   id: string;

@@ -3,7 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
-
+  // eslint: {
+  //   // 🚀 verhindert, dass Lint-Fehler den Build stoppen
+  //   ignoreDuringBuilds: true,
+  // },
   images: {
     remotePatterns: [
       {
