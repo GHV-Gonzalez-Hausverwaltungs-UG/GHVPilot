@@ -5,6 +5,7 @@ export async function downloadPdf(inspection: any) {
     : window.location.origin;
 
   console.log("POSTing to:", `${baseUrl}/api/export-pdf`);
+  console.log("🧠 Runtime check:", process.versions.node);
   const res = await fetch(`${baseUrl}/api/export-pdf`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
