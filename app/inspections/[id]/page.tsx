@@ -15,6 +15,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import Image from "next/image";
+import { downloadPdf } from "@/lib/pdf/downloadPDF";
 
 type InspectionDetail = {
   id: string;
@@ -189,7 +190,7 @@ export default function InspectionDetailPage() {
                   <PriorityBadge priority={inspection.priority} />
                 </div>
 
-                <div className="w-[160px]">
+                <div className="w-40">
                   <Label className="text-[10px] uppercase text-gray-500">
                     Status
                   </Label>
@@ -228,8 +229,7 @@ export default function InspectionDetailPage() {
             <Button
               className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 h-auto"
               onClick={() => {
-                // hier könntest du später ein PDF generieren
-                alert("Export / Bericht noch nicht implementiert");
+                downloadPdf(inspection);
               }}
             >
               📄 Export / Bericht
