@@ -1,4 +1,6 @@
 {
+  "buildCommand": "next build",
+  "outputDirectory": ".vercel/output",
   "functions": {
     "api/export-pdf/route.ts": {
       "runtime": "nodejs20.x",
