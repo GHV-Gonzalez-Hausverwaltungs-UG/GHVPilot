@@ -225,7 +225,10 @@ export default function InspectionDetailPage() {
             </Button>
 
             {/* Platzhalter für später */}
-            <Button className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 h-auto">
+            <Button
+              className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 h-auto cursor-pointer"
+              onClick={() => window.open(`/api/${inspection.id}/pdf`, "_blank")}
+            >
               📄 Export / Bericht
             </Button>
           </div>
