@@ -4,6 +4,7 @@ export async function downloadPdf(inspection: any) {
     ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
     : window.location.origin;
 
+  console.log("POSTing to:", `${baseUrl}/api/export-pdf`);
   const res = await fetch(`${baseUrl}/api/export-pdf`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
