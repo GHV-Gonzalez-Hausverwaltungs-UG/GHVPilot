@@ -15,7 +15,6 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import Image from "next/image";
-import { downloadPdf } from "@/lib/pdf/downloadPdf";
 
 type InspectionDetail = {
   id: string;
@@ -226,12 +225,7 @@ export default function InspectionDetailPage() {
             </Button>
 
             {/* Platzhalter für später */}
-            <Button
-              className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 h-auto"
-              onClick={() => {
-                downloadPdf(inspection);
-              }}
-            >
+            <Button className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 h-auto">
               📄 Export / Bericht
             </Button>
           </div>

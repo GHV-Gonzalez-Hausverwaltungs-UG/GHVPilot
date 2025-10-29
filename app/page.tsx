@@ -14,7 +14,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SaveIcon, TrashIcon } from "lucide-react";
-import { downloadPdf } from "@/lib/pdf/downloadPDF";
+
 import { motion, AnimatePresence } from "framer-motion";
 
 type InspectionRow = {
@@ -198,15 +198,7 @@ export default function InspectionsPage() {
                 Auswahl Löschen
               </Button>
 
-              <Button
-                className="text-emerald-400 hover:bg-emerald-400/10 cursor-pointer"
-                onClick={async () => {
-                  for (const id of selectedIds) {
-                    const insp = inspections.find((i) => i.id === id);
-                    if (insp) await downloadPdf(insp);
-                  }
-                }}
-              >
+              <Button className="text-emerald-400 hover:bg-emerald-400/10 cursor-pointer">
                 <SaveIcon />
                 Auswahl Exportieren
               </Button>
