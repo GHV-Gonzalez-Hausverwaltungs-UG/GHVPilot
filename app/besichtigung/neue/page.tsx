@@ -111,6 +111,23 @@ export default function NeueBesichtigungsForm() {
       }
 
       alert("✅ Besichtigung erfolgreich gespeichert!");
+      setFormData({
+        object: "",
+        floor: "",
+        entrance: "",
+        address: { street: "", city: "", zip: "" },
+        inspector: "",
+        responsibility: "",
+        measures: "",
+        shortage: "",
+        priority: "mittel",
+        status: "offen",
+        date: dayjs().format("YYYY-MM-DD"),
+        time: dayjs().format("HH:mm"),
+        files: undefined,
+      });
+
+      window.location.href = "/";
     } catch (error) {
       console.error("Fehler beim Speichern:", error);
       alert("❌ Fehler beim Speichern der Besichtigung!");
