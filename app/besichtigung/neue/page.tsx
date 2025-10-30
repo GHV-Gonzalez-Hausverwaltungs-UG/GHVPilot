@@ -35,6 +35,7 @@ export default function NeueBesichtigungsForm() {
   const [notes, setNotes] = React.useState(false);
   const [objects, setObjects] = React.useState<any[]>([]);
   const [loadingObjects, setLoadingObjects] = React.useState(true);
+  const [isSubmitting, setIsSubmitting] = React.useState(false); // 🔵 Loader-Flag
 
   const [formData, setFormData] = React.useState<formdata>({
     object: "",
@@ -69,11 +70,14 @@ export default function NeueBesichtigungsForm() {
     }
   };
 
-  // 💾 Submit
+  // 💾 Submit mit Loader & Blockierung
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (isSubmitting) return; // schützt vor Doppelklicks
 
+    setIsSubmitting(true);
     try {
+      // 🔹 1. Eintrag erstellen
       const { data: inspectionData, error: inspectionError } = await supabase
         .from("inspections")
         .insert([
@@ -98,6 +102,7 @@ export default function NeueBesichtigungsForm() {
       if (inspectionError) throw inspectionError;
       const inspectionId = inspectionData.id;
 
+      // 🔹 2. Fotos hochladen (falls vorhanden)
       if (formData.files?.length) {
         const urls = await uploadPictures(formData.files);
         const photoRecords = urls.map((url) => ({
@@ -111,26 +116,14 @@ export default function NeueBesichtigungsForm() {
       }
 
       alert("✅ Besichtigung erfolgreich gespeichert!");
-      setFormData({
-        object: "",
-        floor: "",
-        entrance: "",
-        address: { street: "", city: "", zip: "" },
-        inspector: "",
-        responsibility: "",
-        measures: "",
-        shortage: "",
-        priority: "mittel",
-        status: "offen",
-        date: dayjs().format("YYYY-MM-DD"),
-        time: dayjs().format("HH:mm"),
-        files: undefined,
-      });
-
       window.location.href = "/";
     } catch (error) {
       console.error("Fehler beim Speichern:", error);
       alert("❌ Fehler beim Speichern der Besichtigung!");
+      setIsSubmitting(false);
+    } finally {
+      // Optionaler Reset – Loader bleibt kurz für Transition
+      setTimeout(() => setIsSubmitting(false), 500);
     }
   }
 
@@ -149,14 +142,38 @@ export default function NeueBesichtigungsForm() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-gray-100 flex justify-center items-start p-6">
-      <form onSubmit={handleSubmit}>
+    <main className="relative min-h-screen bg-[#0a0a0a] text-gray-100 flex justify-center items-start p-6 overflow-hidden">
+      {/* 🌀 Vollbild-Loader bei Submit */}
+      <AnimatePresence>
+        {isSubmitting && (
+          <motion.div
+            key="loader"
+            className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 1 }}
+            />
+            <p className="text-gray-300 text-sm">Upload läuft … bitte warten</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <form
+        onSubmit={handleSubmit}
+        className={isSubmitting ? "pointer-events-none" : ""}
+      >
         <Card className="w-full max-w-3xl bg-[#111] border border-[#1f1f1f] text-gray-100 shadow-xl">
           <CardHeader>
             <CardTitle className="text-2xl font-semibold text-blue-400">
               🏢 Besichtigung erfassen
             </CardTitle>
           </CardHeader>
+
           <CardContent className="space-y-8">
             {/* 🏠 Objektdaten */}
             <section>
@@ -392,9 +409,10 @@ export default function NeueBesichtigungsForm() {
             </Link>
             <Button
               type="submit"
-              className="bg-blue-600 text-white hover:bg-blue-500"
+              disabled={isSubmitting}
+              className="bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              💾 Absenden
+              {isSubmitting ? "Wird gespeichert..." : "💾 Absenden"}
             </Button>
           </CardFooter>
         </Card>
