@@ -1,7 +1,5 @@
-// app/api/combinePdf/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/supabaseclient";
-import React from "react";
 import {
   Document,
   Page,
@@ -32,11 +30,11 @@ const styles = StyleSheet.create({
     color: "#0070f3",
   },
   deckblatt: {
-    fontSize: 48,
-    flexDirection: "column",
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    fontWeight: "bold",
+    fontSize: 36,
+    textAlign: "center",
     color: "#0070f3",
   },
   subtitle: {
@@ -49,7 +47,6 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
-
     justifyContent: "space-between",
   },
   label: {
@@ -71,13 +68,15 @@ const styles = StyleSheet.create({
   photoGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    overflow: "hidden",
+    height: 200,
     gap: 10,
     marginTop: 10,
   },
   photo: {
-    width: "48%",
-    height: 160,
-    objectFit: "cover",
+    width: "auto",
+    height: "100%",
+    objectFit: "contain",
     borderRadius: 4,
   },
   footer: {
@@ -96,16 +95,19 @@ const styles = StyleSheet.create({
 // --- PDF-Komponente --------------------------------------------
 const MultiInspectionPDF = ({ inspections }: { inspections: any[] }) => (
   <Document>
+    {/* Deckblatt */}
     <Page size="A4" style={styles.page}>
-      <View style={styles.header}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <Text style={styles.deckblatt}>Besichtigungsbericht</Text>
+        <Text>Erstellt am {new Date().toLocaleDateString("de-DE")}</Text>
       </View>
     </Page>
+
+    {/* Einzelberichte */}
     {inspections.map((inspection, i) => (
       <Page key={i} size="A4" style={styles.page}>
-        {/* HEADER */}
         <View style={styles.header}>
-          <Text style={styles.subtitle}>
+          <Text style={styles.title}>
             Objekt: {inspection.object?.strasse ?? "—"},{" "}
             {inspection.object?.plz ?? ""} {inspection.object?.ort ?? "—"}
           </Text>
@@ -129,7 +131,6 @@ const MultiInspectionPDF = ({ inspections }: { inspections: any[] }) => (
             <Text style={styles.label}>Dringlichkeit:</Text>
             <Text style={styles.text}>{inspection.priority ?? "—"}</Text>
           </View>
-
           <View style={styles.section}>
             <Text style={styles.label}>Status:</Text>
             <Text style={styles.text}>{inspection.status ?? "—"}</Text>
@@ -213,6 +214,12 @@ const MultiInspectionPDF = ({ inspections }: { inspections: any[] }) => (
             </View>
           </View>
         )}
+
+        {/* FOOTER */}
+        <Text style={styles.footer}>
+          Bericht automatisch erstellt durch das GHV Hausverwaltungs-Tool am{" "}
+          {new Date().toLocaleString("de-DE")}
+        </Text>
       </Page>
     ))}
   </Document>
@@ -231,11 +238,10 @@ export async function GET(request: NextRequest) {
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
-  if (ids.length === 0) {
+  if (ids.length === 0)
     return NextResponse.json({ error: "No valid IDs" }, { status: 400 });
-  }
 
-  // 🔹 Daten abrufen
+  // 🔹 Alle relevanten Felder wie im Einzel-PDF laden
   const { data, error } = await supabase
     .from("inspections")
     .select(
@@ -246,6 +252,12 @@ export async function GET(request: NextRequest) {
         priority,
         status,
         shortage,
+        measures,
+        responsibility,
+        inspector,
+        notes,
+        floor,
+        entrance,
         object:objects!inspections_object_id_fkey (
           objektnr,
           strasse,
@@ -266,14 +278,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (!data || data.length === 0) {
+  if (!data || data.length === 0)
     return NextResponse.json(
       { error: "Keine Daten gefunden" },
       { status: 404 }
     );
-  }
 
-  // 🔹 PDF rendern
   const stream = await renderToStream(
     <MultiInspectionPDF inspections={data} />
   );

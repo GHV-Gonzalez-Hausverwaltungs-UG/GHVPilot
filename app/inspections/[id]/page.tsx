@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectTrigger,
@@ -15,6 +17,8 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import Image from "next/image";
+
+import { uploadPictures } from "@/lib/supabase/fileUpload"; // ⚡ dein vorhandener Upload-Helper
 
 type InspectionDetail = {
   id: string;
@@ -30,6 +34,7 @@ type InspectionDetail = {
   floor: string | null;
   entrance: string | null;
   object: {
+    id: string;
     objektnr: number;
     strasse: string;
     ort: string;
@@ -49,19 +54,24 @@ export default function InspectionDetailPage() {
   const [inspection, setInspection] = React.useState<InspectionDetail | null>(
     null
   );
+  const [objects, setObjects] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [savingStatus, setSavingStatus] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [editMode, setEditMode] = React.useState(false);
+  const [newPhotos, setNewPhotos] = React.useState<File[]>([]);
 
-  // Daten laden
+  // 🔹 Objekte & Inspection laden
   React.useEffect(() => {
     async function load() {
       setLoading(true);
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-      // 1. Inspection + verbundenes Objekt laden
-      const { data, error } = await supabase
-        .from("inspections")
-        .select(
-          `
+      const [{ data: insp, error: inspErr }, { data: objs }] =
+        await Promise.all([
+          supabase
+            .from("inspections")
+            .select(
+              `
           id,
           date,
           time,
@@ -75,6 +85,7 @@ export default function InspectionDetailPage() {
           floor,
           entrance,
           object:objects!inspections_object_id_fkey (
+            id,
             objektnr,
             strasse,
             ort,
@@ -86,147 +97,207 @@ export default function InspectionDetailPage() {
             description
           )
         `
-        )
-        .eq("id", id)
-        .single();
+            )
+            .eq("id", id)
+            .single(),
+          supabase.from("objects").select("id, objektnr, strasse, ort, plz"),
+        ]);
 
-      if (error) {
-        console.error("Fehler beim Laden der Besichtigung:", error);
-      } else {
-        if (data) {
-          // Falls Supabase ein Array für die Relation liefert:
-          const normalized = {
-            ...data,
-            object: Array.isArray(data.object) ? data.object[0] : data.object,
-          };
+      if (inspErr) console.error(inspErr);
 
-          setInspection(normalized as InspectionDetail);
-        }
+      if (insp) {
+        setInspection({
+          ...insp,
+          object: Array.isArray(insp.object) ? insp.object[0] : insp.object,
+          photos: insp.photos ?? [], // keine URL-Manipulation
+        });
       }
 
+      if (objs) setObjects(objs);
       setLoading(false);
     }
 
     load();
   }, [id]);
 
-  // Status ändern
-  async function handleStatusChange(newStatus: string) {
+  // 🔹 Speichern (inkl. Upload)
+  async function handleSave() {
     if (!inspection) return;
-    setSavingStatus(true);
+    setSaving(true);
 
-    const { error } = await supabase
-      .from("inspections")
-      .update({ status: newStatus })
-      .eq("id", inspection.id);
+    try {
+      const updateFields = {
+        shortage: inspection.shortage,
+        measures: inspection.measures,
+        notes: inspection.notes,
+        priority: inspection.priority,
+        status: inspection.status,
+        responsibility: inspection.responsibility,
+        inspector: inspection.inspector,
+        floor: inspection.floor,
+        entrance: inspection.entrance,
+        object_id: inspection.object?.id ?? null,
+      };
 
-    if (error) {
-      console.error("Fehler beim Update Status:", error);
-    } else {
-      setInspection((prev) => (prev ? { ...prev, status: newStatus } : prev));
+      // 1️⃣ Inspection-Update
+      const { error: inspErr } = await supabase
+        .from("inspections")
+        .update(updateFields)
+        .eq("id", inspection.id);
+      if (inspErr) throw inspErr;
+
+      // 2️⃣ Neue Fotos hochladen
+      if (newPhotos.length) {
+        const urls = await uploadPictures(newPhotos);
+        const photoRecords = urls.map((url) => ({
+          inspection_id: inspection.id,
+          url,
+        }));
+        const { error: photoErr } = await supabase
+          .from("photos")
+          .insert(photoRecords);
+        if (photoErr) throw photoErr;
+      }
+
+      alert("✅ Änderungen gespeichert!");
+      setNewPhotos([]);
+      setEditMode(false);
+    } catch (err) {
+      console.error("Update-Fehler:", err);
+      alert("❌ Fehler beim Speichern!");
+    } finally {
+      setSaving(false);
     }
-
-    setSavingStatus(false);
   }
 
-  if (loading || !inspection) {
+  // 🔹 Foto löschen
+  async function handleDeletePhoto(photoId: string) {
+    const { error } = await supabase.from("photos").delete().eq("id", photoId);
+    if (!error) {
+      setInspection((prev) =>
+        prev
+          ? {
+              ...prev,
+              photos: prev.photos.filter((p) => p.id !== photoId),
+            }
+          : prev
+      );
+    }
+  }
+
+  const handleChange = (
+    field: keyof InspectionDetail,
+    value: string | null
+  ) => {
+    setInspection((prev) => (prev ? { ...prev, [field]: value ?? "" } : prev));
+  };
+
+  if (loading || !inspection)
     return (
-      <main className="min-h-screen bg-[#0a0a0a] text-gray-100 p-6 flex items-center justify-center">
-        <div className="text-gray-500 text-sm">Lade Details…</div>
+      <main className="min-h-screen bg-[#0a0a0a] text-gray-100 flex items-center justify-center">
+        <div>Lade Details …</div>
       </main>
     );
-  }
-
-  const addrLine1 = inspection.object?.strasse ?? "—";
-  const addrLine2 = inspection.object
-    ? [inspection.object.plz, inspection.object.ort].filter(Boolean).join(" ")
-    : "—";
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-gray-100 p-6 flex justify-center">
       <div className="w-full max-w-4xl space-y-6">
-        {/* Header Card */}
-        <Card className="bg-[#111] border border-[#1f1f1f] shadow-xl p-4 flex flex-col gap-4">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-            <div>
-              <h1 className="text-xl font-semibold text-blue-400 flex items-center gap-2">
-                Objekt {inspection.object?.objektnr ?? "—"}
-              </h1>
-              <div className="text-sm text-gray-300 leading-tight">
-                <div>{addrLine1}</div>
-                <div className="text-gray-500">{addrLine2}</div>
-              </div>
-
-              <div className="text-xs text-gray-500 mt-2">
-                {inspection.floor && <div>Etage: {inspection.floor}</div>}
-                {inspection.entrance && (
-                  <div>Eingang: {inspection.entrance}</div>
-                )}
-                {inspection.responsibility && (
-                  <div>Zuständig: {inspection.responsibility}</div>
-                )}
-                {inspection.inspector && (
-                  <div>Bearbeiter: {inspection.inspector}</div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col items-start md:items-end gap-2 text-sm">
-              <div className="flex gap-4 text-gray-300">
-                <div>
-                  <div className="text-xs text-gray-500">Datum</div>
-                  <div>{inspection.date ?? "—"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">Uhrzeit</div>
-                  <div>{inspection.time ?? "—"}</div>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 text-left md:text-right">
-                <div>
-                  <div className="text-xs text-gray-500">Dringlichkeit</div>
-                  <PriorityBadge priority={inspection.priority} />
-                </div>
-
-                <div className="w-40">
-                  <Label className="text-[10px] uppercase text-gray-500">
-                    Status
-                  </Label>
-                  <Select
-                    value={inspection.status ?? "offen"}
-                    onValueChange={handleStatusChange}
-                    disabled={savingStatus}
+        {/* Header */}
+        <Card className="bg-[#111] border border-[#1f1f1f] p-4">
+          <div className="flex justify-between items-start">
+            <h1 className="text-xl font-semibold text-blue-400">
+              Objekt {inspection.object?.objektnr ?? "—"}
+            </h1>
+            <div className="flex gap-2">
+              {!editMode ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditMode(true)}
+                >
+                  ✏️ Bearbeiten
+                </Button>
+              ) : (
+                <>
+                  <Button size="sm" onClick={handleSave} disabled={saving}>
+                    💾 Speichern
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditMode(false)}
+                    disabled={saving}
                   >
-                    <SelectTrigger className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100 h-8 px-2 py-1 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#1a1a1a] border border-[#2a2a2a] text-gray-100 text-xs">
-                      <SelectItem value="offen">offen</SelectItem>
-                      <SelectItem value="in_bearbeitung">
-                        in Bearbeitung
-                      </SelectItem>
-                      <SelectItem value="erledigt">erledigt</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+                    Abbrechen
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
-          <Separator className="bg-[#222]" />
+          <div className="mt-2 text-sm text-gray-300">
+            {editMode ? (
+              <Select
+                value={inspection.object?.id ?? ""}
+                onValueChange={(value) => {
+                  const obj = objects.find((o) => o.id === value);
+                  if (obj)
+                    setInspection((prev) =>
+                      prev ? { ...prev, object: obj } : prev
+                    );
+                }}
+              >
+                <SelectTrigger className="bg-[#0d0d0d] border border-[#2a2a2a]">
+                  <SelectValue placeholder="Objekt auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {objects.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.objektnr} – {o.strasse}, {o.ort}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <>
+                {inspection.object?.strasse ?? "—"},{" "}
+                {inspection.object?.plz ?? ""} {inspection.object?.ort ?? "—"}
+              </>
+            )}
+          </div>
+
+          <div className="flex gap-4 mt-2 text-sm text-gray-400">
+            {editMode ? (
+              <>
+                <Input
+                  placeholder="Etage"
+                  value={inspection.floor ?? ""}
+                  onChange={(e) => handleChange("floor", e.target.value)}
+                  className="bg-[#0d0d0d] border-[#2a2a2a] text-gray-100"
+                />
+                <Input
+                  placeholder="Eingang"
+                  value={inspection.entrance ?? ""}
+                  onChange={(e) => handleChange("entrance", e.target.value)}
+                  className="bg-[#0d0d0d] border-[#2a2a2a] text-gray-100"
+                />
+              </>
+            ) : (
+              <>
+                <div>Etage: {inspection.floor ?? "—"}</div>
+                <div>Eingang: {inspection.entrance ?? "—"}</div>
+              </>
+            )}
+          </div>
+
+          <Separator className="bg-[#222] my-3" />
 
           <div className="flex gap-2 flex-wrap">
-            <Button
-              className="bg-[#222] border border-[#333] hover:bg-[#2a2a2a] text-gray-200 text-xs px-3 py-1 h-auto"
-              onClick={() => router.back()}
-            >
+            <Button variant="outline" size="sm" onClick={() => router.back()}>
               ⬅ Zurück
             </Button>
-
-            {/* Platzhalter für später */}
             <Button
-              className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 h-auto cursor-pointer"
+              className="bg-blue-600 hover:bg-blue-500 text-white text-xs"
               onClick={() => window.open(`/api/${inspection.id}/pdf`, "_blank")}
             >
               📄 Export / Bericht
@@ -234,30 +305,54 @@ export default function InspectionDetailPage() {
           </div>
         </Card>
 
-        {/* Mangel / Maßnahmen / Notizen */}
-        <Card className="bg-[#111] border border-[#1f1f1f] shadow-xl p-4 space-y-6">
-          <SectionBlock title="Mangel" body={inspection.shortage || "—"} />
-          <Separator className="bg-[#222]" />
-          <SectionBlock title="Maßnahmen" body={inspection.measures || "—"} />
-          <Separator className="bg-[#222]" />
-          <SectionBlock title="Interne Notiz" body={inspection.notes || "—"} />
+        {/* Mangel & Notizen */}
+        <Card className="bg-[#111] border border-[#1f1f1f] p-4 space-y-4">
+          <EditableField
+            label="Mangelbeschreibung"
+            value={inspection.shortage ?? ""}
+            editable={editMode}
+            onChange={(v) => handleChange("shortage", v)}
+          />
+          <EditableField
+            label="Maßnahmen"
+            value={inspection.measures ?? ""}
+            editable={editMode}
+            onChange={(v) => handleChange("measures", v)}
+          />
+          <EditableField
+            label="Notizen"
+            value={inspection.notes ?? ""}
+            editable={editMode}
+            onChange={(v) => handleChange("notes", v)}
+          />
         </Card>
 
-        {/* Fotos */}
-        <Card className="bg-[#111] border border-[#1f1f1f] shadow-xl p-4">
-          <h2 className="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
-            📷 Fotos
-            <span className="text-[10px] text-gray-500 font-normal">
-              ({inspection.photos.length})
-            </span>
+        {/* 📷 Fotos */}
+        <Card className="bg-[#111] border border-[#1f1f1f] p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-200">
+            📷 Fotos ({inspection.photos.length})
           </h2>
 
+          {editMode && (
+            <Input
+              type="file"
+              multiple
+              accept="image/*"
+              onChange={(e) =>
+                setNewPhotos(e.target.files ? Array.from(e.target.files) : [])
+              }
+              className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100"
+            />
+          )}
+
           {inspection.photos.length === 0 ? (
-            <div className="text-sm text-gray-500 italic">
-              Keine Fotos hochgeladen.
-            </div>
+            <div className="text-sm text-gray-500">Keine Fotos vorhanden.</div>
           ) : (
-            <PhotoGrid photos={inspection.photos} />
+            <PhotoGrid
+              photos={inspection.photos}
+              editable={editMode}
+              onDelete={handleDeletePhoto}
+            />
           )}
         </Card>
       </div>
@@ -265,102 +360,69 @@ export default function InspectionDetailPage() {
   );
 }
 
-// kleine Unterkomponenten für sauberes JSX
-
-function PriorityBadge({ priority }: { priority: string | null }) {
-  if (!priority) {
-    return (
-      <span className="text-gray-400 bg-gray-800/50 text-xs px-2 py-1 rounded">
-        —
-      </span>
-    );
-  }
-
-  if (priority === "hoch") {
-    return (
-      <span className="text-red-400 bg-red-900/30 text-xs px-2 py-1 rounded">
-        hoch
-      </span>
-    );
-  }
-  if (priority === "mittel") {
-    return (
-      <span className="text-yellow-300 bg-yellow-900/30 text-xs px-2 py-1 rounded">
-        mittel
-      </span>
-    );
-  }
-  return (
-    <span className="text-green-300 bg-green-900/30 text-xs px-2 py-1 rounded">
-      niedrig
-    </span>
-  );
-}
-
-function SectionBlock({ title, body }: { title: string; body: string }) {
+// ✏️ Textfeld
+function EditableField({
+  label,
+  value,
+  editable,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  editable: boolean;
+  onChange: (v: string) => void;
+}) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">
-        {title}
-      </div>
-      <div className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
-        {body}
-      </div>
+      <Label className="text-[10px] uppercase text-gray-500">{label}</Label>
+      {editable ? (
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100 text-sm"
+        />
+      ) : (
+        <div className="text-sm text-gray-300">{value || "—"}</div>
+      )}
     </div>
   );
 }
 
+// 🖼 Foto Grid mit Delete-Option
 function PhotoGrid({
   photos,
+  editable,
+  onDelete,
 }: {
   photos: { id: string; url: string; description: string | null }[];
+  editable?: boolean;
+  onDelete?: (id: string) => void;
 }) {
-  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
-
   return (
-    <>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-        {photos.map((photo) => (
-          <button
-            key={photo.id}
-            className="relative group border border-[#2a2a2a] rounded-lg overflow-hidden bg-black/40 aspect-square"
-            onClick={() => setPreviewUrl(photo.url)}
-          >
-            <Image
-              src={photo.url}
-              alt={photo.description ?? "Foto"}
-              fill
-              className="object-cover group-hover:opacity-80 transition"
-            />
-            {photo.description && (
-              <div className="absolute bottom-0 left-0 right-0 text-[10px] text-gray-200 bg-black/60 px-2 py-1 line-clamp-2">
-                {photo.description}
-              </div>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {previewUrl && (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+      {photos.map((photo) => (
         <div
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 cursor-zoom-out"
-          onClick={() => setPreviewUrl(null)}
+          key={photo.id}
+          className="relative aspect-square border border-[#2a2a2a] rounded-lg overflow-hidden group"
         >
-          <div className="relative max-w-3xl w-full max-h-[90vh] border border-[#333] bg-[#0a0a0a] rounded-lg overflow-hidden shadow-2xl">
-            <div className="absolute top-2 right-2 text-gray-400 text-xs bg-black/60 rounded px-2 py-1">
-              Tippen zum Schließen ✕
-            </div>
-            <div className="relative w-full h-[70vh]">
-              <Image
-                src={previewUrl}
-                alt="Preview"
-                fill
-                className="object-contain"
-              />
-            </div>
-          </div>
+          <Image
+            src={photo.url}
+            alt={photo.description ?? "Foto"}
+            fill
+            className="object-cover"
+            unoptimized
+            sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          />
+          {editable && onDelete && (
+            <button
+              onClick={() => onDelete(photo.id)}
+              className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
+            >
+              ✕
+            </button>
+          )}
         </div>
-      )}
-    </>
+      ))}
+    </div>
   );
 }

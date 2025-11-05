@@ -64,13 +64,15 @@ const styles = StyleSheet.create({
   photoGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
+    overflow: "hidden",
+    height: 180,
     gap: 10,
     marginTop: 10,
   },
   photo: {
-    width: "48%",
-    height: 160,
-    objectFit: "cover",
+    width: "auto",
+    height: "100%",
+    objectFit: "contain",
     borderRadius: 4,
   },
   footer: {
