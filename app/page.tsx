@@ -255,7 +255,8 @@ export default function InspectionsPage() {
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="w-full overflow-x-auto">
+        {/* Desktop-Tabelle */}
+        <div className="hidden md:block w-full overflow-x-auto">
           <table className="w-full text-sm border-collapse min-w-[700px]">
             <thead>
               <tr className="text-left bg-[#1a1a1a] text-gray-300">
@@ -299,7 +300,6 @@ export default function InspectionsPage() {
                   .filter((row) => {
                     if (filterField === "none" || !filterValue.trim())
                       return true;
-
                     const val = filterValue.toLowerCase();
                     if (filterField === "object")
                       return (
@@ -307,13 +307,10 @@ export default function InspectionsPage() {
                         row.object?.ort?.toLowerCase().includes(val) ||
                         String(row.object?.objektnr ?? "").includes(val)
                       );
-
                     if (filterField === "date")
                       return (row.date ?? "").toLowerCase().includes(val);
-
                     if (filterField === "status")
                       return (row.status ?? "").toLowerCase().includes(val);
-
                     return true;
                   })
                   .map((row) => (
@@ -328,12 +325,9 @@ export default function InspectionsPage() {
                           onCheckedChange={() => toggleOne(row.id)}
                         />
                       </Td>
-                      {/* Objekt / Objektnr */}
                       <Td className="font-medium text-gray-100">
                         {row.object?.objektnr ?? "—"}
                       </Td>
-
-                      {/* Adresse */}
                       <Td className="text-gray-400">
                         <div className="leading-tight">
                           <div>{row.object?.strasse ?? "—"}</div>
@@ -342,14 +336,8 @@ export default function InspectionsPage() {
                           </div>
                         </div>
                       </Td>
-
-                      {/* Datum */}
                       <Td className="text-gray-300">{row.date ?? "—"}</Td>
-
-                      {/* Uhrzeit */}
                       <Td className="text-gray-300">{row.time ?? "—"}</Td>
-
-                      {/* Dringlichkeit */}
                       <Td>
                         <span
                           className={
@@ -363,13 +351,9 @@ export default function InspectionsPage() {
                           {row.priority ?? "—"}
                         </span>
                       </Td>
-
-                      {/* Mangel */}
                       <Td className="max-w-[200px] text-gray-300">
                         <div className="truncate">{row.shortage ?? "—"}</div>
                       </Td>
-
-                      {/* Status (editable) */}
                       <Td>
                         <Select
                           value={row.status ?? "offen"}
@@ -390,8 +374,6 @@ export default function InspectionsPage() {
                           </SelectContent>
                         </Select>
                       </Td>
-
-                      {/* Aktionen */}
                       <Td className="text-right">
                         <Button
                           className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20 text-xs"
@@ -407,6 +389,93 @@ export default function InspectionsPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Cards */}
+        <div className="flex flex-col gap-3 md:hidden">
+          {inspections.length === 0 && !loading && (
+            <div className="text-center text-gray-500 py-8">
+              Noch keine Besichtigungen.
+            </div>
+          )}
+
+          {loading && (
+            <div className="text-center text-gray-500 py-8">Lädt …</div>
+          )}
+
+          {!loading &&
+            inspections.map((row) => (
+              <Card
+                key={row.id}
+                className="bg-[#1a1a1a] border border-[#2a2a2a] p-4 rounded-lg"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="text-blue-400 font-semibold">
+                    Objekt {row.object?.objektnr ?? "—"}
+                  </div>
+                  <Checkbox
+                    checked={selectedIds.includes(row.id)}
+                    onCheckedChange={() => toggleOne(row.id)}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div className="text-sm text-gray-300">
+                  <div>{row.object?.strasse ?? "—"}</div>
+                  <div className="text-xs text-gray-500 mb-2">
+                    {row.object?.ort ?? "—"}
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <span className="text-xs text-gray-400">
+                      📅 {row.date ?? "—"}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      ⏰ {row.time ?? "—"}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <span
+                      className={
+                        row.priority === "hoch"
+                          ? "text-red-400 bg-red-900/30 text-xs px-2 py-1 rounded"
+                          : row.priority === "mittel"
+                          ? "text-yellow-300 bg-yellow-900/30 text-xs px-2 py-1 rounded"
+                          : "text-green-300 bg-green-900/30 text-xs px-2 py-1 rounded"
+                      }
+                    >
+                      {row.priority ?? "—"}
+                    </span>
+                    <span className="text-gray-300 text-xs px-2 py-1 bg-[#0d0d0d] rounded">
+                      {row.status ?? "offen"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-400 mb-3 line-clamp-2">
+                    {row.shortage ?? "—"}
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-blue-400 text-xs"
+                    onClick={() =>
+                      (window.location.href = `/inspections/${row.id}`)
+                    }
+                  >
+                    Details
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-red-400 text-xs"
+                    onClick={() => handleDelete(row.id)}
+                  >
+                    Löschen
+                  </Button>
+                </div>
+              </Card>
+            ))}
         </div>
       </Card>
     </main>

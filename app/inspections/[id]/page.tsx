@@ -17,8 +17,8 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import Image from "next/image";
-
-import { uploadPictures } from "@/lib/supabase/fileUpload"; // ⚡ dein vorhandener Upload-Helper
+import { uploadPictures } from "@/lib/supabase/fileUpload";
+import { localDB } from "@/lib/localdb";
 
 type InspectionDetail = {
   id: string;
@@ -40,16 +40,13 @@ type InspectionDetail = {
     ort: string;
     plz?: string;
   } | null;
-  photos: {
-    id: string;
-    url: string;
-    description: string | null;
-  }[];
+  photos: { id: string; url: string; description: string | null }[];
 };
 
 export default function InspectionDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const params = useParams<{ id?: string }>();
   const router = useRouter();
+  const id = params?.id;
 
   const [inspection, setInspection] = React.useState<InspectionDetail | null>(
     null
@@ -60,137 +57,168 @@ export default function InspectionDetailPage() {
   const [editMode, setEditMode] = React.useState(false);
   const [newPhotos, setNewPhotos] = React.useState<File[]>([]);
 
-  // 🔹 Objekte & Inspection laden
+  // 🟡 Daten laden (offline + online)
   React.useEffect(() => {
+    if (!id) return;
+
     async function load() {
       setLoading(true);
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-      const [{ data: insp, error: inspErr }, { data: objs }] =
-        await Promise.all([
-          supabase
-            .from("inspections")
-            .select(
-              `
-          id,
-          date,
-          time,
-          priority,
-          status,
-          shortage,
-          measures,
-          responsibility,
-          inspector,
-          notes,
-          floor,
-          entrance,
-          object:objects!inspections_object_id_fkey (
-            id,
-            objektnr,
-            strasse,
-            ort,
-            plz
-          ),
-          photos:photos (
-            id,
-            url,
-            description
-          )
-        `
-            )
-            .eq("id", id)
-            .single(),
-          supabase.from("objects").select("id, objektnr, strasse, ort, plz"),
-        ]);
+      // 1️⃣ Versuch: aus lokalem Cache
+      const localData = id ? await localDB.inspections.get(id) : null;
+      if (localData?.data) setInspection(localData.data as InspectionDetail);
 
-      if (inspErr) console.error(inspErr);
+      // 2️⃣ Online-Aktualisierung
+      if (navigator.onLine) {
+        const [{ data: insp, error: inspErr }, { data: objs }] =
+          await Promise.all([
+            supabase
+              .from("inspections")
+              .select(
+                `
+              id, date, time, priority, status, shortage, measures,
+              responsibility, inspector, notes, floor, entrance,
+              object:objects!inspections_object_id_fkey (id, objektnr, strasse, ort, plz),
+              photos:photos (id, url, description)
+            `
+              )
+              .eq("id", id)
+              .single(),
+            supabase.from("objects").select("id, objektnr, strasse, ort, plz"),
+          ]);
 
-      if (insp) {
-        setInspection({
-          ...insp,
-          object: Array.isArray(insp.object) ? insp.object[0] : insp.object,
-          photos: insp.photos ?? [], // keine URL-Manipulation
-        });
+        if (inspErr) console.error(inspErr);
+        if (insp) {
+          const normalized: InspectionDetail = {
+            ...insp,
+            object: Array.isArray(insp.object) ? insp.object[0] : insp.object,
+            photos: Array.isArray(insp.photos) ? insp.photos : [],
+          };
+          setInspection(normalized);
+
+          await localDB.inspections.put({
+            id: id!, // <-- Non-null Assertion (wir wissen, dass id existiert)
+            data: normalized,
+            status: "synced",
+            updatedAt: new Date().toISOString(),
+          });
+        }
+
+        if (objs) setObjects(objs);
       }
 
-      if (objs) setObjects(objs);
       setLoading(false);
     }
 
     load();
   }, [id]);
 
-  // 🔹 Speichern (inkl. Upload)
+  // 🟢 Speichern mit Offline-Fallback
   async function handleSave() {
     if (!inspection) return;
     setSaving(true);
 
-    try {
-      const updateFields = {
-        shortage: inspection.shortage,
-        measures: inspection.measures,
-        notes: inspection.notes,
-        priority: inspection.priority,
-        status: inspection.status,
-        responsibility: inspection.responsibility,
-        inspector: inspection.inspector,
-        floor: inspection.floor,
-        entrance: inspection.entrance,
-        object_id: inspection.object?.id ?? null,
-      };
+    const updateFields = {
+      shortage: inspection.shortage,
+      measures: inspection.measures,
+      notes: inspection.notes,
+      priority: inspection.priority,
+      status: inspection.status,
+      responsibility: inspection.responsibility,
+      inspector: inspection.inspector,
+      floor: inspection.floor,
+      entrance: inspection.entrance,
+      object_id: inspection.object?.id ?? null, // ✅ richtige Spalte
+      updatedat: new Date().toISOString(), // ✅ passt zu deiner Supabase-Spalte
+    };
 
-      // 1️⃣ Inspection-Update
+    try {
+      // 📴 Offline speichern
+      if (!navigator.onLine) {
+        await localDB.inspections.put({
+          id: inspection.id,
+          data: { ...inspection, ...updateFields },
+          photosToAdd: newPhotos ?? [],
+          status: "pending",
+          updatedAt: updateFields.updatedat,
+        });
+        alert("📶 Kein Internet – Änderungen lokal gespeichert!");
+        setEditMode(false);
+        setSaving(false);
+        return;
+      }
+
+      // 🌐 Online: Supabase-Update
       const { error: inspErr } = await supabase
         .from("inspections")
         .update(updateFields)
         .eq("id", inspection.id);
       if (inspErr) throw inspErr;
 
-      // 2️⃣ Neue Fotos hochladen
+      // 📸 Fotos anhängen
+      // 📸 Fotos anhängen
       if (newPhotos.length) {
         const urls = await uploadPictures(newPhotos);
         const photoRecords = urls.map((url) => ({
-          inspection_id: inspection.id,
+          id: crypto.randomUUID(), // lokale ID für Konsistenz
           url,
+          description: null,
         }));
-        const { error: photoErr } = await supabase
-          .from("photos")
-          .insert(photoRecords);
+
+        const { error: photoErr } = await supabase.from("photos").insert(
+          photoRecords.map((p) => ({
+            inspection_id: inspection.id,
+            url: p.url,
+          }))
+        );
+
         if (photoErr) throw photoErr;
+
+        // UI aktualisieren
+        setInspection((prev) =>
+          prev
+            ? { ...prev, photos: [...(prev.photos ?? []), ...photoRecords] }
+            : prev
+        );
       }
 
+      // Lokalen Cache aktualisieren
+      await localDB.inspections.put({
+        id: inspection.id,
+        data: { ...inspection, ...updateFields },
+        status: "synced",
+        updatedAt: updateFields.updatedat,
+      });
+
       alert("✅ Änderungen gespeichert!");
-      setNewPhotos([]);
       setEditMode(false);
+      setNewPhotos([]);
     } catch (err) {
-      console.error("Update-Fehler:", err);
+      console.error("❌ Fehler beim Speichern:", err);
       alert("❌ Fehler beim Speichern!");
     } finally {
       setSaving(false);
     }
   }
 
-  // 🔹 Foto löschen
+  // 🗑 Foto löschen
   async function handleDeletePhoto(photoId: string) {
+    if (!navigator.onLine) {
+      alert("⚠️ Offline – Löschen erst wieder online möglich.");
+      return;
+    }
     const { error } = await supabase.from("photos").delete().eq("id", photoId);
     if (!error) {
       setInspection((prev) =>
         prev
-          ? {
-              ...prev,
-              photos: prev.photos.filter((p) => p.id !== photoId),
-            }
+          ? { ...prev, photos: prev.photos.filter((p) => p.id !== photoId) }
           : prev
       );
     }
   }
 
-  const handleChange = (
-    field: keyof InspectionDetail,
-    value: string | null
-  ) => {
+  const handleChange = (field: keyof InspectionDetail, value: string | null) =>
     setInspection((prev) => (prev ? { ...prev, [field]: value ?? "" } : prev));
-  };
 
   if (loading || !inspection)
     return (
@@ -208,6 +236,7 @@ export default function InspectionDetailPage() {
             <h1 className="text-xl font-semibold text-blue-400">
               Objekt {inspection.object?.objektnr ?? "—"}
             </h1>
+
             <div className="flex gap-2">
               {!editMode ? (
                 <Button
@@ -330,7 +359,7 @@ export default function InspectionDetailPage() {
         {/* 📷 Fotos */}
         <Card className="bg-[#111] border border-[#1f1f1f] p-4 space-y-3">
           <h2 className="text-sm font-semibold text-gray-200">
-            📷 Fotos ({inspection.photos.length})
+            📷 Fotos ({inspection.photos?.length ?? 0})
           </h2>
 
           {editMode && (
@@ -345,14 +374,14 @@ export default function InspectionDetailPage() {
             />
           )}
 
-          {inspection.photos.length === 0 ? (
-            <div className="text-sm text-gray-500">Keine Fotos vorhanden.</div>
-          ) : (
+          {inspection.photos?.length > 0 ? (
             <PhotoGrid
               photos={inspection.photos}
               editable={editMode}
               onDelete={handleDeletePhoto}
             />
+          ) : (
+            <div className="text-sm text-gray-500">Keine Fotos vorhanden.</div>
           )}
         </Card>
       </div>

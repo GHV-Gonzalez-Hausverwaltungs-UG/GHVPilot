@@ -30,6 +30,7 @@ import { supabase } from "@/lib/supabase/supabaseclient";
 import { ImagePreviewGrid } from "@/components/imagePreviewGrid";
 import dayjs from "dayjs";
 import Link from "next/link";
+import { localDB } from "@/lib/localdb";
 
 export default function NeueBesichtigungsForm() {
   const [notes, setNotes] = React.useState(false);
@@ -71,62 +72,81 @@ export default function NeueBesichtigungsForm() {
   };
 
   // 💾 Submit mit Loader & Blockierung
+  // Ausschnitt für den relevanten Teil
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (isSubmitting) return; // schützt vor Doppelklicks
-
+    if (isSubmitting) return;
     setIsSubmitting(true);
+
+    const newInspection = {
+      object_id: formData.object,
+      floor: formData.floor,
+      entrance: formData.entrance,
+      responsibility: formData.responsibility,
+      inspector: formData.inspector,
+      shortage: formData.shortage,
+      measures: formData.measures,
+      priority: formData.priority,
+      date: formData.date,
+      time: formData.time,
+      notes: formData.notes || null,
+      status: formData.status || "offen",
+    };
+
     try {
-      // 🔹 1. Eintrag erstellen
-      const { data: inspectionData, error: inspectionError } = await supabase
+      // 📴 Offline speichern
+      if (!navigator.onLine) {
+        await localDB.inspections.put({
+          id: crypto.randomUUID(),
+          data: newInspection,
+          photosToAdd: formData.files ?? [],
+          status: "pending",
+          updatedAt: new Date().toISOString(),
+        });
+
+        alert("📶 Kein Internet – lokal gespeichert!");
+        setIsSubmitting(false);
+        window.location.href = "/";
+        return;
+      }
+
+      // 🌐 Online speichern
+      const { data: insp, error } = await supabase
         .from("inspections")
-        .insert([
-          {
-            object_id: formData.object,
-            floor: formData.floor,
-            entrance: formData.entrance,
-            responsibility: formData.responsibility,
-            inspector: formData.inspector,
-            shortage: formData.shortage,
-            measures: formData.measures,
-            priority: formData.priority,
-            date: formData.date,
-            time: formData.time,
-            notes: formData.notes || null,
-            status: formData.status || "offen",
-          },
-        ])
+        .insert([newInspection])
         .select("id")
         .single();
+      if (error) throw error;
 
-      if (inspectionError) throw inspectionError;
-      const inspectionId = inspectionData.id;
+      const inspectionId = insp.id;
 
-      // 🔹 2. Fotos hochladen (falls vorhanden)
+      // 📸 Fotos hinzufügen
       if (formData.files?.length) {
         const urls = await uploadPictures(formData.files);
         const photoRecords = urls.map((url) => ({
           inspection_id: inspectionId,
           url,
         }));
-        const { error: photoError } = await supabase
-          .from("photos")
-          .insert(photoRecords);
-        if (photoError) throw photoError;
+        await supabase.from("photos").insert(photoRecords);
       }
 
-      alert("✅ Besichtigung erfolgreich gespeichert!");
+      await localDB.inspections.put({
+        id: inspectionId,
+        data: newInspection,
+        status: "synced",
+        updatedAt: new Date().toISOString(),
+      });
+
+      alert("✅ Besichtigung gespeichert!");
       window.location.href = "/";
-    } catch (error) {
-      console.error("Fehler beim Speichern:", error);
-      alert("❌ Fehler beim Speichern der Besichtigung!");
-      setIsSubmitting(false);
+    } catch (err) {
+      console.error(err);
+      alert("❌ Fehler beim Speichern!");
     } finally {
-      // Optionaler Reset – Loader bleibt kurz für Transition
-      setTimeout(() => setIsSubmitting(false), 500);
+      setIsSubmitting(false);
     }
   }
-
   // 📦 Objekte laden
   React.useEffect(() => {
     async function loadObjects() {

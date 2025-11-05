@@ -1,15 +1,19 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+// next.config.ts
+const nextConfig = {
   reactStrictMode: true,
-  output: "standalone",
+  output: "standalone", // falls du auf AWS / Docker / EB deployst
 
+  // optional: Turbopack bleibt aktiv
+  experimental: {
+    turbo: true,
+  },
+
+  // Damit Bilder aus Supabase angezeigt werden dürfen:
   images: {
     remotePatterns: [
       {
         protocol: "https",
         hostname: "vwvheqrtiuaaorojvznj.supabase.co",
-        port: "",
         pathname: "/storage/v1/object/public/**",
       },
     ],
