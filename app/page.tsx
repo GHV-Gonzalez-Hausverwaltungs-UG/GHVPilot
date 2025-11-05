@@ -13,9 +13,10 @@ import {
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { SaveIcon, TrashIcon } from "lucide-react";
+import { LogOut, SaveIcon, TrashIcon } from "lucide-react";
 
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 type InspectionRow = {
   id: string;
@@ -42,6 +43,21 @@ export default function InspectionsPage() {
   >("none");
   const [filterValue, setFilterValue] = React.useState("");
 
+  const router = useRouter();
+  const [signingOut, setSigningOut] = React.useState(false);
+
+  async function handleLogout() {
+    try {
+      setSigningOut(true);
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error("Logout failed:", e);
+    } finally {
+      // Ziel anpassen, falls deine Login-Route anders heißt
+      router.replace("/login");
+      router.refresh(); // optional: sorgt dafür, dass serverseitige Guards sofort greifen
+    }
+  }
   // 1. Daten laden
   React.useEffect(() => {
     async function load() {
@@ -155,6 +171,19 @@ export default function InspectionsPage() {
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-gray-100 p-6">
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 bg-red-500"
+          onClick={handleLogout}
+          disabled={signingOut}
+          title="Abmelden"
+        >
+          <LogOut className="h-4 w-4" />
+          {signingOut ? "Abmelden…" : "Logout"}
+        </Button>
+      </div>
       <Card className="bg-[#111] border border-[#1f1f1f] shadow-xl p-4">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
           <h1 className="text-xl font-semibold text-blue-400">

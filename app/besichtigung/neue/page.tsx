@@ -1,5 +1,5 @@
 "use client";
-
+import { v4 as uuidv4 } from "uuid";
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -80,34 +80,37 @@ export default function NeueBesichtigungsForm() {
     setIsSubmitting(true);
 
     const newInspection = {
-      object_id: formData.object,
-      floor: formData.floor,
-      entrance: formData.entrance,
-      responsibility: formData.responsibility,
-      inspector: formData.inspector,
-      shortage: formData.shortage,
-      measures: formData.measures,
-      priority: formData.priority,
+      object_id: formData.object || null,
+      floor: formData.floor || null,
+      entrance: formData.entrance || null,
+      responsibility: formData.responsibility || null,
+      inspector: formData.inspector || null,
+      shortage: formData.shortage || null,
+      measures: formData.measures || null,
+      priority: formData.priority || "mittel",
       date: formData.date,
       time: formData.time,
       notes: formData.notes || null,
       status: formData.status || "offen",
+      updatedat: new Date().toISOString(),
     };
 
     try {
-      // 📴 Offline speichern
+      // 📴 Kein Internet → lokal speichern
       if (!navigator.onLine) {
+        const tempId = uuidv4();
+
         await localDB.inspections.put({
-          id: crypto.randomUUID(),
+          id: tempId,
           data: newInspection,
           photosToAdd: formData.files ?? [],
-          status: "pending",
-          updatedAt: new Date().toISOString(),
+          status: "pending", // ⬅ wichtig: neu anlegen, nicht updaten
+          updatedAt: newInspection.updatedat,
         });
 
-        alert("📶 Kein Internet – lokal gespeichert!");
+        alert("📶 Kein Internet – Besichtigung wurde lokal gespeichert!");
         setIsSubmitting(false);
-        window.location.href = "/";
+        window.location.href = "/inspections";
         return;
       }
 
@@ -117,11 +120,12 @@ export default function NeueBesichtigungsForm() {
         .insert([newInspection])
         .select("id")
         .single();
+
       if (error) throw error;
 
       const inspectionId = insp.id;
 
-      // 📸 Fotos hinzufügen
+      // 📸 Bilder hochladen
       if (formData.files?.length) {
         const urls = await uploadPictures(formData.files);
         const photoRecords = urls.map((url) => ({
@@ -131,6 +135,7 @@ export default function NeueBesichtigungsForm() {
         await supabase.from("photos").insert(photoRecords);
       }
 
+      // 🗄️ In lokale DB legen (Cache)
       await localDB.inspections.put({
         id: inspectionId,
         data: newInspection,
@@ -138,10 +143,10 @@ export default function NeueBesichtigungsForm() {
         updatedAt: new Date().toISOString(),
       });
 
-      alert("✅ Besichtigung gespeichert!");
-      window.location.href = "/";
+      alert("✅ Besichtigung erfolgreich gespeichert!");
+      window.location.href = "/inspections";
     } catch (err) {
-      console.error(err);
+      console.error("❌ Fehler beim Speichern:", err);
       alert("❌ Fehler beim Speichern!");
     } finally {
       setIsSubmitting(false);

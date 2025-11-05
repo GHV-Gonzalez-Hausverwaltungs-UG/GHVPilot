@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 import Image from "next/image";
+import SplashProvider from "@/app/SplashProvider";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -37,48 +38,50 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-[380px]">
-        <CardHeader>
-          <Image
-            src="/ghvLogo.png"
-            alt="Logo"
-            width={48}
-            height={48}
-            className="mx-auto mb-4"
-          />
-          <CardTitle className="text-xl font-semibold text-center">
-            Login
-          </CardTitle>
-        </CardHeader>
+    <SplashProvider>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-[380px]">
+          <CardHeader>
+            <Image
+              src="/ghvLogo.png"
+              alt="Logo"
+              width={48}
+              height={48}
+              className="mx-auto mb-4"
+            />
+            <CardTitle className="text-xl font-semibold text-center">
+              Login
+            </CardTitle>
+          </CardHeader>
 
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Input
-                type="email"
-                placeholder="E-Mail"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <Input
-                type="password"
-                placeholder="Passwort"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Input
+                  type="email"
+                  placeholder="E-Mail"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+                <Input
+                  type="password"
+                  placeholder="Passwort"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
 
-            {errorMsg && <p className="text-sm text-red-500">{errorMsg}</p>}
+              {errorMsg && <p className="text-sm text-red-500">{errorMsg}</p>}
 
-            <Button type="submit" className="w-full">
-              Einloggen
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+              <Button type="submit" className="w-full cursor-pointer">
+                Einloggen
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </SplashProvider>
   );
 }
