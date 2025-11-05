@@ -10,24 +10,32 @@ export async function syncOfflineData() {
 
   for (const item of pending) {
     try {
-      const payload = { ...item.data } as any; // ✅ wichtig!
+      const payload = { ...item.data } as Record<string, any>;
 
-      if (payload.object && !payload.object_id) {
-        payload.object_id = payload.object.id ?? null;
+      // 🧹 Cleanup: entferne Felder, die es in Supabase nicht gibt
+      if ("object" in payload) {
+        payload.object_id = payload.object?.id ?? payload.object_id ?? null;
         delete payload.object;
       }
 
-      if (payload.updatedAt && !payload.updatedat) {
+      if ("photos" in payload) {
+        delete payload.photos; // ⚡️ ganz wichtig
+      }
+
+      if ("updatedAt" in payload) {
         payload.updatedat = payload.updatedAt;
         delete payload.updatedAt;
       }
 
+      // 🛰️ Sync zu Supabase
       const { error } = await supabase
         .from("inspections")
         .update(payload)
         .eq("id", item.id);
+
       if (error) throw error;
 
+      // 📸 Falls offline Fotos existieren
       if (item.photosToAdd?.length) {
         const urls = await uploadPictures(item.photosToAdd);
         await supabase
@@ -35,6 +43,7 @@ export async function syncOfflineData() {
           .insert(urls.map((url) => ({ inspection_id: item.id, url })));
       }
 
+      // ✅ Markiere als synced
       await localDB.inspections.update(item.id, { status: "synced" });
     } catch (err) {
       console.error("Sync-Fehler (Inspection):", err);
