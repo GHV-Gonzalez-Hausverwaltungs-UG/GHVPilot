@@ -23,14 +23,17 @@ const styles = StyleSheet.create({
     color: "#111",
   },
   header: {
-    borderBottom: "2pt solid #0070f3",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "center",
     paddingBottom: 10,
     marginBottom: 20,
   },
   title: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#0070f3",
+    color: "#080024",
   },
   subtitle: {
     fontSize: 12,
@@ -86,12 +89,52 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     textAlign: "center",
   },
+  banner: {
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    width: "100%",
+    gap: 20,
+    marginBottom: 20,
+  },
+  mediumChip: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffcc66",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    fontSize: 10,
+    color: "#aa7722",
+    textAlign: "center",
+    width: "auto",
+    borderColor: "#aa7722",
+    borderWidth: 1,
+  },
 });
 
 const BesichtigungPDF = ({ inspection }: { inspection: any }) => (
   <Document>
     <Page size="A4" style={styles.page}>
-      {/* HEADER */}
+      <View style={styles.banner}>
+        <Image
+          src="public/icons/icon-512.png"
+          style={{ width: 48, height: 48, marginBottom: 10 }}
+          alt={"GHV Logo"}
+        />
+        <View style={styles.header}>
+          <Text style={styles.title}>
+            Besichtigungsbericht – {inspection.object?.strasse ?? ""}
+          </Text>
+          <Text style={styles.subtitle}>
+            Objekt: {inspection.object?.strasse ?? "—"},{" "}
+            {inspection.object?.plz ?? ""} {inspection.object?.ort ?? "—"}
+          </Text>
+        </View>
+      </View>
+      {/* HEADER
       <View style={styles.header}>
         <Text style={styles.title}>
           Besichtigungsbericht – {inspection.object?.strasse ?? ""}
@@ -100,7 +143,7 @@ const BesichtigungPDF = ({ inspection }: { inspection: any }) => (
           Objekt: {inspection.object?.strasse ?? "—"},{" "}
           {inspection.object?.plz ?? ""} {inspection.object?.ort ?? "—"}
         </Text>
-      </View>
+      </View> */}
 
       {/* BASIS-INFORMATIONEN */}
       <View style={styles.row}>
@@ -118,7 +161,13 @@ const BesichtigungPDF = ({ inspection }: { inspection: any }) => (
         </View>
         <View style={styles.section}>
           <Text style={styles.label}>Dringlichkeit:</Text>
-          <Text style={styles.text}>{inspection.priority ?? "—"}</Text>
+          <Text
+            style={
+              inspection.priority == "mittel" ? styles.mediumChip : styles.text
+            }
+          >
+            {inspection.priority ?? "—"}
+          </Text>
         </View>
 
         <View style={styles.section}>
@@ -205,7 +254,7 @@ const BesichtigungPDF = ({ inspection }: { inspection: any }) => (
 
       {/* FOOTER */}
       <Text style={styles.footer}>
-        Bericht automatisch erstellt durch das GHV Hausverwaltungs-Tool am{" "}
+        Bericht automatisch erstellt durch den GHV CoPilot am{" "}
         {new Date().toLocaleString("de-DE")}
       </Text>
     </Page>
@@ -213,56 +262,53 @@ const BesichtigungPDF = ({ inspection }: { inspection: any }) => (
 );
 
 export async function GET(
-  request: NextRequest,
-  context: { params: { invoiceID: string } | Promise<{ invoiceID: string }> }
+  _req: NextRequest,
+  context: { params: Promise<{ invoiceID: string }> }
 ) {
-  // egal ob Promise oder Objekt → wir lösen beides sauber auf
-  const actualParams =
-    context.params instanceof Promise ? await context.params : context.params;
-
-  const id = actualParams.invoiceID;
+  // ⬇️ params Promise auflösen
+  const { invoiceID } = await context.params;
+  const id = invoiceID;
 
   if (!id) {
-    // Dieser Block wird nun seltener erreicht, da die ID korrekt abgerufen wird
-    console.error("Empfangene Context:", actualParams);
+    console.error("Keine invoiceID in params (resolved):", { invoiceID });
     return NextResponse.json(
       { message: "Error: invoiceID is missing" },
       { status: 400 }
     );
   }
+
   const { data, error } = await supabase
     .from("inspections")
     .select(
       `
+        id,
+        date,
+        time,
+        priority,
+        status,
+        shortage,
+        measures,
+        responsibility,
+        inspector,
+        notes,
+        floor,
+        entrance,
+        object:objects!inspections_object_id_fkey (
+          objektnr,
+          strasse,
+          ort,
+          plz
+        ),
+        photos:photos (
           id,
-          date,
-          time,
-          priority,
-          status,
-          shortage,
-          measures,
-          responsibility,
-          inspector,
-          notes,
-          floor,
-          entrance,
-          object:objects!inspections_object_id_fkey (
-            objektnr,
-            strasse,
-            ort,
-            plz
-          ),
-          photos:photos (
-            id,
-            url,
-            description
-          )
-        `
+          url,
+          description
+        )
+      `
     )
     .eq("id", id)
     .single();
 
-  // Fallback für lokale Tests:
   if (error || !data) {
     console.error("Fehler beim Laden der Inspection:", error);
     return NextResponse.json(
@@ -272,9 +318,15 @@ export async function GET(
   }
 
   const inspectionData = { ...data, photos: data.photos || [] };
+
   const stream = await renderToStream(
     <BesichtigungPDF inspection={inspectionData} />
   );
-  // Erfolgreiche Antwort
-  return new NextResponse(stream as unknown as ReadableStream);
+
+  return new NextResponse(stream as unknown as ReadableStream, {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="inspection_${id}.pdf"`,
+    },
+  });
 }

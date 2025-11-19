@@ -304,7 +304,9 @@ export default function InspectionDetailPage() {
             </Button>
             <Button
               className="bg-blue-600 hover:bg-blue-500 text-white text-xs w-full sm:w-auto"
-              onClick={() => window.open(`/api/${inspection.id}/pdf`, "_blank")}
+              onClick={() => {
+                window.open(`/api/${inspection.id}/pdf`, "_blank");
+              }}
             >
               <FileUpIcon /> Export / Bericht
             </Button>
@@ -346,7 +348,7 @@ export default function InspectionDetailPage() {
           <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start">
             {/* Linke Seite: Objekt + Meta */}
             <div className="space-y-3">
-              <h1 className="text-xl font-semibold text-blue-400 break-words">
+              <h1 className="text-xl font-semibold text-blue-400 wrap-break-words">
                 Objekt {inspection.object?.objektnr ?? "—"}
               </h1>
 
@@ -374,7 +376,7 @@ export default function InspectionDetailPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <p className="break-words">
+                  <p className="wrap-break-words">
                     {inspection.object?.strasse ?? "—"},{" "}
                     {inspection.object?.plz ?? ""}{" "}
                     {inspection.object?.ort ?? "—"}
@@ -490,7 +492,7 @@ export default function InspectionDetailPage() {
                     alt="Zugewiesen an"
                     width={28}
                     height={28}
-                    className="h-7 w-7 rounded-full border border-[#2a2a2a] flex-shrink-0"
+                    className="h-7 w-7 rounded-full border border-[#2a2a2a] shrink-0"
                   />
                   <span className="text-gray-200 text-sm truncate">
                     {assignedToLabel || inspection.assigned_to || "Unbekannt"}
@@ -582,7 +584,7 @@ function EditableField({
           className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100 text-sm"
         />
       ) : (
-        <div className="text-sm text-gray-300 whitespace-pre-line break-words">
+        <div className="text-sm text-gray-300 whitespace-pre-line wrap-break-word">
           {value || "—"}
         </div>
       )}
