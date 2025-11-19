@@ -402,7 +402,7 @@ export default function NeueBesichtigungsForm() {
 
                     <Label className="mt-4 text-gray-300">Status</Label>
                     <Select
-                      value={formData.status}
+                      value={formData.status ?? undefined}
                       onValueChange={(v) =>
                         setFormData((p) => ({
                           ...p,
