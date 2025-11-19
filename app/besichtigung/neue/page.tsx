@@ -382,7 +382,7 @@ export default function NeueBesichtigungsForm() {
                   <div className="flex flex-col w-full space-y-2">
                     <Label className="text-gray-300">Dringlichkeit</Label>
                     <Select
-                      value={formData.priority}
+                      value={formData.priority ?? undefined}
                       onValueChange={(v) =>
                         setFormData((p) => ({
                           ...p,
