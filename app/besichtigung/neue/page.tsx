@@ -24,35 +24,98 @@ import {
   SelectLabel,
 } from "@/components/ui/select";
 
-import { formdata } from "@/types/formdatatype";
 import { uploadPictures } from "@/lib/supabase/fileUpload";
 import { supabase } from "@/lib/supabase/supabaseclient";
 import { ImagePreviewGrid } from "@/components/imagePreviewGrid";
 import dayjs from "dayjs";
 import Link from "next/link";
 import { localDB } from "@/lib/localdb";
+import { Building2Icon } from "lucide-react";
+
+import type { Tables, TablesInsert } from "@/types/supabase";
+import type { User } from "@supabase/supabase-js";
+
+type InspectionInsert = TablesInsert<"inspections">;
+type ObjectRow = Tables<"objects">;
+type ProfileRow = Tables<"profiles">;
+
+// 👇 Formular-Daten: basiert auf DB-Insert + zusätzliche UI-Felder
+type InspectionFormData = {
+  address: {
+    street: string;
+    city: string;
+    zip: string;
+  };
+  files: File[];
+  // Roh-Input für datetime-local (wird beim Submit in ISO umgewandelt)
+} & Pick<
+  InspectionInsert,
+  | "object_id"
+  | "floor"
+  | "entrance"
+  | "responsibility"
+  | "inspector"
+  | "shortage"
+  | "measures"
+  | "priority"
+  | "status"
+  | "date"
+  | "time"
+  | "notes"
+  | "assigned_to"
+>;
 
 export default function NeueBesichtigungsForm() {
   const [notes, setNotes] = React.useState(false);
-  const [objects, setObjects] = React.useState<any[]>([]);
+  const [objects, setObjects] = React.useState<ObjectRow[]>([]);
+  const [profiles, setProfiles] = React.useState<ProfileRow[]>([]); // 👈 neu
   const [loadingObjects, setLoadingObjects] = React.useState(true);
-  const [isSubmitting, setIsSubmitting] = React.useState(false); // 🔵 Loader-Flag
+  const [loadingProfiles, setLoadingProfiles] = React.useState(true); // 👈 neu
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const [formData, setFormData] = React.useState<formdata>({
-    object: "",
+  const [currentUser, setCurrentUser] = React.useState<User | null>(null); // 👈 neu
+
+  const [formData, setFormData] = React.useState<InspectionFormData>({
+    object_id: null,
     floor: "",
     entrance: "",
-    address: { street: "", city: "", zip: "" },
-    inspector: "",
     responsibility: "",
-    measures: "",
+    inspector: "",
     shortage: "",
+    measures: "",
     priority: "mittel",
     status: "offen",
     date: dayjs().format("YYYY-MM-DD"),
     time: dayjs().format("HH:mm"),
-    files: undefined,
+    notes: null,
+    assigned_to: null,
+    address: { street: "", city: "", zip: "" },
+    files: [],
   });
+
+  // 👤 aktuellen User holen
+  React.useEffect(() => {
+    supabase.auth
+      .getUser()
+      .then(({ data, error }) => {
+        if (!error) setCurrentUser(data.user ?? null);
+      })
+      .catch((err) => console.error("Auth getUser error:", err));
+  }, []);
+
+  // 👥 mögliche Nutzer für "assigned_to" laden (z.B. alle Profile)
+  React.useEffect(() => {
+    async function loadProfiles() {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .order("first_name", { ascending: true });
+
+      if (!error && data) setProfiles(data as ProfileRow[]);
+      setLoadingProfiles(false);
+    }
+    loadProfiles();
+  }, []);
 
   // 🔄 Formular-Handler
   const handleFormChange = (
@@ -61,26 +124,36 @@ export default function NeueBesichtigungsForm() {
     >
   ) => {
     const { name, value } = e.target;
+
     if (name in formData.address) {
       setFormData((prev) => ({
         ...prev,
         address: { ...prev.address, [name]: value },
       }));
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
     }
   };
 
   // 💾 Submit mit Loader & Blockierung
   // Ausschnitt für den relevanten Teil
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    const newInspection = {
-      object_id: formData.object || null,
+    if (!currentUser) {
+      alert("Kein eingeloggter Benutzer gefunden. Bitte erneut anmelden.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // 🔐 typed nach Supabase-Types
+    const newInspection: InspectionInsert = {
+      object_id: formData.object_id,
       floor: formData.floor || null,
       entrance: formData.entrance || null,
       responsibility: formData.responsibility || null,
@@ -88,15 +161,19 @@ export default function NeueBesichtigungsForm() {
       shortage: formData.shortage || null,
       measures: formData.measures || null,
       priority: formData.priority || "mittel",
+      status: formData.status || "offen",
       date: formData.date,
       time: formData.time,
       notes: formData.notes || null,
-      status: formData.status || "offen",
-      updatedat: new Date().toISOString(),
+      // 🆕 wichtiger Teil:
+      created_by: currentUser.id, // aktuell eingeloggter User
+      assigned_to: formData.assigned_to || null,
+      // falls es bei dir "updated_at" oder ähnliches heißt, bitte anpassen:
+      updatedat: new Date().toISOString() as any,
     };
 
     try {
-      // 📴 Kein Internet → lokal speichern
+      // 📴 Offline → Lokal speichern
       if (!navigator.onLine) {
         const tempId = uuidv4();
 
@@ -104,13 +181,13 @@ export default function NeueBesichtigungsForm() {
           id: tempId,
           data: newInspection,
           photosToAdd: formData.files ?? [],
-          status: "pending", // ⬅ wichtig: neu anlegen, nicht updaten
-          updatedAt: newInspection.updatedat,
+          status: "pending",
+          updatedAt: newInspection.updatedat ?? undefined,
         });
 
         alert("📶 Kein Internet – Besichtigung wurde lokal gespeichert!");
         setIsSubmitting(false);
-        window.location.href = "/inspections";
+        window.location.href = "/";
         return;
       }
 
@@ -122,7 +199,6 @@ export default function NeueBesichtigungsForm() {
         .single();
 
       if (error) throw error;
-
       const inspectionId = insp.id;
 
       // 📸 Bilder hochladen
@@ -160,7 +236,7 @@ export default function NeueBesichtigungsForm() {
         .select("id, objektnr, strasse, ort, plz")
         .order("objektnr", { ascending: true });
 
-      if (!error && data) setObjects(data);
+      if (!error && data) setObjects(data as ObjectRow[]);
       setLoadingObjects(false);
     }
     loadObjects();
@@ -194,8 +270,8 @@ export default function NeueBesichtigungsForm() {
       >
         <Card className="w-full max-w-3xl bg-[#111] border border-[#1f1f1f] text-gray-100 shadow-xl">
           <CardHeader>
-            <CardTitle className="text-2xl font-semibold text-blue-400">
-              🏢 Besichtigung erfassen
+            <CardTitle className="flex flex-row  gap-2 items-center text-2xl font-semibold text-blue-400">
+              <Building2Icon /> Besichtigung erfassen
             </CardTitle>
           </CardHeader>
 
@@ -213,11 +289,11 @@ export default function NeueBesichtigungsForm() {
                     if (selected)
                       setFormData((prev) => ({
                         ...prev,
-                        object: value,
+                        object_id: value,
                         address: {
-                          street: selected.strasse,
-                          city: selected.ort,
-                          zip: selected.plz,
+                          street: selected.strasse ?? "",
+                          city: selected.ort ?? "",
+                          zip: selected.plz ?? "",
                         },
                       }));
                   }}
@@ -324,13 +400,13 @@ export default function NeueBesichtigungsForm() {
                       </SelectContent>
                     </Select>
 
-                    <Label className="text-gray-300">Status</Label>
+                    <Label className="mt-4 text-gray-300">Status</Label>
                     <Select
                       value={formData.status}
                       onValueChange={(v) =>
                         setFormData((p) => ({
                           ...p,
-                          status: v as "offen" | "in Bearbeitung" | "erledigt",
+                          status: v as "offen" | "in_bearbeitung" | "erledigt", // an dein Enum anpassen!
                         }))
                       }
                     >
@@ -339,14 +415,54 @@ export default function NeueBesichtigungsForm() {
                       </SelectTrigger>
                       <SelectContent className="bg-[#1a1a1a] border border-[#2a2a2a] text-gray-100">
                         <SelectItem value="offen">Offen</SelectItem>
-                        <SelectItem value="in Bearbeitung">
+                        <SelectItem value="in_bearbeitung">
                           In Bearbeitung
                         </SelectItem>
                         <SelectItem value="erledigt">Erledigt</SelectItem>
                       </SelectContent>
                     </Select>
+
+                    {/* 👇 NEU: Zugewiesen an */}
+                    <Label className="mt-4 text-gray-300">Zugewiesen an</Label>
+                    <Select
+                      value={formData.assigned_to ?? undefined}
+                      onValueChange={(v) =>
+                        setFormData((p) => ({
+                          ...p,
+                          assigned_to: v === "__none" ? null : v, // 👈 "__none" -> null
+                        }))
+                      }
+                      disabled={loadingProfiles}
+                    >
+                      <SelectTrigger className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100">
+                        <SelectValue
+                          placeholder={
+                            loadingProfiles
+                              ? "Lade Nutzer..."
+                              : "Mitarbeiter auswählen"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#1a1a1a] border border-[#2a2a2a] text-gray-100">
+                        <SelectGroup>
+                          <SelectLabel>Mitarbeiter</SelectLabel>
+
+                          {/* 👇 statt value="" */}
+                          <SelectItem value="__none">Kein(e)</SelectItem>
+
+                          {profiles.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {`${p.first_name ?? ""} ${
+                                p.last_name ?? ""
+                              }`.trim() || p.id}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
                   </div>
 
+                  {/* rechts: Fotos-Upload wie bisher */}
                   <div className="space-y-2">
                     <Label className="text-gray-300">Fotos hinzufügen</Label>
                     <Input
@@ -400,13 +516,12 @@ export default function NeueBesichtigungsForm() {
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="border border-[#2a2a2a] text-gray-300 hover:bg-[#222]"
+                  className="border border-[#2a2a2a] text-gray-300 bg-[#111] hover:bg-[#222]"
                   onClick={() => setNotes(!notes)}
                 >
-                  {notes ? "❌ Entfernen" : "📝 Hinzufügen"}
+                  {notes ? "Entfernen" : "Hinzufügen"}
                 </Button>
               </div>
-
               <AnimatePresence>
                 {notes && (
                   <motion.div
@@ -418,6 +533,10 @@ export default function NeueBesichtigungsForm() {
                     <Textarea
                       placeholder="z. B. Bewohner informiert, Rückruf geplant …"
                       className="bg-[#0d0d0d] border border-[#2a2a2a] text-gray-100"
+                      value={formData.notes ?? ""}
+                      onChange={(e) =>
+                        setFormData((p) => ({ ...p, notes: e.target.value }))
+                      }
                     />
                   </motion.div>
                 )}
@@ -437,7 +556,7 @@ export default function NeueBesichtigungsForm() {
               disabled={isSubmitting}
               className="bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? "Wird gespeichert..." : "💾 Absenden"}
+              {isSubmitting ? "Wird gespeichert..." : "Absenden"}
             </Button>
           </CardFooter>
         </Card>

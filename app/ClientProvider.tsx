@@ -2,7 +2,7 @@
 
 import React from "react";
 import AuthWrapper from "@/components/AuthWrapper";
-import SplashProvider from "./SplashProvider";
+
 import { useOfflineSync } from "@/lib/useOfflineSync";
 
 export default function ClientProviders({
