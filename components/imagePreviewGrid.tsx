@@ -8,20 +8,24 @@ import {
   ContextMenuSeparator,
 } from "@/components/ui/context-menu";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { formdata } from "@/types/formdatatype";
 
-export function ImagePreviewGrid({
-  files,
+// ❗ Kein import { formdata } mehr
+
+// Generischer Prop-Typ: jedes Form, das ein files-Feld hat, ist ok
+type ImagePreviewGridProps<T extends { files?: File[] }> = {
+  files?: File[];
+  setFormData: React.Dispatch<React.SetStateAction<T>>;
+};
+
+export function ImagePreviewGrid<T extends { files?: File[] }>({
+  files = [],
   setFormData,
-}: {
-  files: File[];
-  setFormData: React.Dispatch<React.SetStateAction<formdata>>;
-}) {
+}: ImagePreviewGridProps<T>) {
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
 
   // Mobile Long-Press Handler
-  const pressTimer = React.useRef<NodeJS.Timeout | null>(null);
+  const pressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleDelete = (index: number) => {
     setFormData((prev) => ({
@@ -34,9 +38,11 @@ export function ImagePreviewGrid({
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
+
     input.onchange = (e: Event) => {
       const target = e.target as HTMLInputElement | null;
       const newFile = target?.files ? target.files[0] : undefined;
+
       if (newFile) {
         setFormData((prev) => {
           const updated = [...(prev.files || [])];
@@ -45,8 +51,12 @@ export function ImagePreviewGrid({
         });
       }
     };
+
     input.click();
   };
+
+  // Wenn keine Files → nichts anzeigen
+  if (!files.length) return null;
 
   return (
     <>
@@ -59,7 +69,6 @@ export function ImagePreviewGrid({
               <ContextMenuTrigger
                 asChild
                 onTouchStart={() => {
-                  // ✅ Timer-Start im Ref speichern
                   pressTimer.current = setTimeout(() => {
                     const evt = new MouseEvent("contextmenu", {
                       bubbles: true,
@@ -70,7 +79,6 @@ export function ImagePreviewGrid({
                   }, 600);
                 }}
                 onTouchEnd={() => {
-                  // ✅ Timer stoppen
                   if (pressTimer.current) {
                     clearTimeout(pressTimer.current);
                     pressTimer.current = null;
