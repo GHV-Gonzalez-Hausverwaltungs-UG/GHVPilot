@@ -220,7 +220,7 @@ export default function NeueBesichtigungsForm() {
       });
 
       alert("✅ Besichtigung erfolgreich gespeichert!");
-      window.location.href = "/inspections";
+      window.location.href = "/";
     } catch (err) {
       console.error("❌ Fehler beim Speichern:", err);
       alert("❌ Fehler beim Speichern!");

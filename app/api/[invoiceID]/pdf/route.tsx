@@ -120,7 +120,7 @@ const BesichtigungPDF = ({ inspection }: { inspection: any }) => (
     <Page size="A4" style={styles.page}>
       <View style={styles.banner}>
         <Image
-          src="public/icons/icon-512.png"
+          src="https://vwvheqrtiuaaorojvznj.supabase.co/storage/v1/object/public/intern/icon-512.png"
           style={{ width: 48, height: 48, marginBottom: 10 }}
         />
         <View style={styles.header}>
