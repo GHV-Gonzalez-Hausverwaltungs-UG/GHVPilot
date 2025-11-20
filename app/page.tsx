@@ -273,7 +273,7 @@ export default function InspectionsPage() {
 
   return (
     <main
-      className={`min-h-screen bg-[#0a0a0a] text-gray-100  md:p-6 ${
+      className={`min-h-screen mx-auto bg-[#0a0a0a] text-gray-100  md:p-6 ${
         hasSelection ? "pt-16 md:pt-20" : ""
       }`}
     >

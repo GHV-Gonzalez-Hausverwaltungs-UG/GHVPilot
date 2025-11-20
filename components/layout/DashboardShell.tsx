@@ -18,6 +18,8 @@ import { supabase } from "@/lib/supabase/supabaseclient";
 
 import { useCurrentProfile } from "@/lib/useCurrentProfile";
 import Image from "next/image";
+import { Breadcrumbs } from "./Breadcrumbs";
+import { Button } from "../ui/button";
 
 type Props = {
   children: React.ReactNode;
@@ -30,7 +32,7 @@ const navItems = [
     icon: ClipboardList,
   },
   {
-    href: "/besichtigungen/neue",
+    href: "/besichtigung/neue",
     label: "Neue Besichtigung",
     icon: PlusCircle,
   },
@@ -83,67 +85,69 @@ export default function DashboardShell({ children }: Props) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-[#0b0b0b] border-r border-zinc-800 p-4 transition-transform duration-200 ease-out
+        className={`fixed flex flex-col justify-between inset-y-0 left-0 z-40 w-64 transform bg-[#0b0b0b] border-r border-zinc-800 p-4 transition-transform duration-200 ease-out
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         md:translate-x-0`}
       >
-        {/* Logo / Brand */}
-        <div className="mb-6 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/80">
-            <Image
-              src="/icons/icon-512.png"
-              alt="GHV Logo"
-              width={20}
-              height={20}
-              className="w-full h-full"
-            />
-          </div>
-          <div>
-            <div className="text-sm font-semibold tracking-tight">
-              GHV Pilot
+        <div>
+          {/* Logo / Brand */}
+          <div className="mb-6 flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600/80">
+              <Image
+                src="/icons/icon-512.png"
+                alt="GHV Logo"
+                width={20}
+                height={20}
+                className="w-full h-full"
+              />
             </div>
-            <div className="text-[11px] text-zinc-400">Internes Dashboard</div>
+            <div>
+              <div className="text-sm font-semibold tracking-tight">
+                GHV Pilot
+              </div>
+              <div className="text-[11px] text-zinc-400">
+                Internes Dashboard
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Navigation */}
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href);
+          {/* Navigation */}
+          <nav className="space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href);
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-2 rounded-md px-2 py-2 text-sm transition-colors
                   ${
                     isActive
                       ? "bg-blue-600/20 text-blue-300 border border-blue-600/40"
                       : "text-zinc-300 hover:bg-zinc-800/80 hover:text-white"
                   }`}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
 
         {/* Footer in Sidebar (z. B. Version / Settings) */}
-        <div className="mt-8 border-t border-zinc-800 pt-4 text-xs text-zinc-500">
+        <div className="flex flex-col gap-4 mt-8 border-t border-zinc-800 pt-4 text-xs text-zinc-500">
           <button
             onClick={handleLogout}
-            className="mb-4 w-full text-left hover:text-zinc-200"
+            className="flex items-center w-full px-2 py-2 rounded-xl gap-1 border border-red-500 text-red-400 cursor-pointer hover:bg-red-400/10"
           >
-            <div className="flex items-center gap-1 text-red-400">
-              <LogOut className="h-3 w-3" />
-              Abmelden
-            </div>
+            <LogOut className="h-3 w-3" />
+            Abmelden
           </button>
           <div className="flex items-center justify-between">
             <span>v0.1.0</span>
@@ -159,25 +163,30 @@ export default function DashboardShell({ children }: Props) {
       </aside>
 
       {/* Content-Bereich */}
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-screen flex-1 flex-col md:ml-64">
         {/* Topbar */}
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-zinc-800 bg-[#050505]/80 px-3 py-2 backdrop-blur md:px-4">
-          <div className="flex items-center gap-2">
-            {/* Mobile Toggle */}
-            <button
-              className="inline-flex items-center justify-center rounded-md border border-zinc-700 bg-zinc-900/60 p-1 text-zinc-200 md:hidden"
-              onClick={() => setSidebarOpen((s) => !s)}
-              aria-label="Sidebar öffnen"
-            >
-              {sidebarOpen ? (
-                <X className="h-4 w-4" />
-              ) : (
-                <Menu className="h-4 w-4" />
-              )}
-            </button>
-            <div className="hidden text-xs font-medium text-zinc-400 md:block">
-              Dashboard
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              {/* Mobile Toggle */}
+              <button
+                className="inline-flex items-center justify-center rounded-md border border-zinc-700 bg-zinc-900/60 p-1 text-zinc-200 md:hidden"
+                onClick={() => setSidebarOpen((s) => !s)}
+                aria-label="Sidebar öffnen"
+              >
+                {sidebarOpen ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <Menu className="h-4 w-4" />
+                )}
+              </button>
+              <div className="hidden text-xs font-medium text-zinc-400 md:block">
+                Dashboard
+              </div>
             </div>
+
+            {/* Breadcrumbs unter dem Titel */}
+            <Breadcrumbs />
           </div>
 
           {/* Rechts: User / Status */}
