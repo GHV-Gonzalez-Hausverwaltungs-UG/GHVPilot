@@ -122,7 +122,6 @@ const BesichtigungPDF = ({ inspection }: { inspection: any }) => (
         <Image
           src="public/icons/icon-512.png"
           style={{ width: 48, height: 48, marginBottom: 10 }}
-          alt={"GHV Logo"}
         />
         <View style={styles.header}>
           <Text style={styles.title}>
