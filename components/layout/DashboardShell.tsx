@@ -85,7 +85,7 @@ export default function DashboardShell({ children }: Props) {
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-64 transform bg-[#0b0b0b] border-r border-zinc-800 p-4 transition-transform duration-200 ease-out
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-        md:static md:translate-x-0`}
+        md:translate-x-0`}
       >
         {/* Logo / Brand */}
         <div className="mb-6 flex items-center gap-2">
