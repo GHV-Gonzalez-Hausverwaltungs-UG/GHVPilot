@@ -63,12 +63,23 @@ export default function DashboardShell({ children }: Props) {
     }
   }
 
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const width = window.innerWidth;
+
+    // Tailwind md: 768px, lg: 1024px -> hier: 768–1023px = "iPad-Range"
+    if (width >= 768 && width < 1024) {
+      setIsCollapsed(true);
+    }
+  }, []);
+
   // Klassen für Breite / Margin je nach Collapsed-Zustand
   const sidebarWidthClass = isCollapsed ? "w-16" : "w-64";
   const contentMarginClass = isCollapsed ? "md:ml-16" : "md:ml-64";
 
   return (
-    <div className="flex min-h-screen bg-[#050505] text-gray-100">
+    <div className="flex h-screen bg-[#050505] text-gray-100">
       {/* Overlay für Mobile */}
       {sidebarOpen && (
         <button
@@ -201,13 +212,14 @@ export default function DashboardShell({ children }: Props) {
       {/* Content-Bereich */}
       <div
         className={`
-          flex min-h-screen flex-1 flex-col
-          ${contentMarginClass}
-          transition-[margin] duration-200
-        `}
+    flex flex-1 flex-col
+    ${contentMarginClass}
+    overflow-hidden
+    transition-[margin] duration-200
+  `}
       >
         {/* Topbar */}
-        <header className="sticky top-0 z-20 border-b border-zinc-800 bg-[#050505]/80 backdrop-blur">
+        <header className="shrink-0 sticky top-0 z-20 border-b border-zinc-800 bg-[#050505]/80 backdrop-blur">
           <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-3 py-2 md:px-6">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
@@ -251,7 +263,7 @@ export default function DashboardShell({ children }: Props) {
         </header>
 
         {/* Hauptinhalt */}
-        <main className="flex-1 bg-[#050505]">
+        <main className="flex-1 bg-[#050505] overflow-y-auto">
           <div className="mx-auto w-full px-3 py-4 md:px-6 md:py-6">
             {children}
           </div>

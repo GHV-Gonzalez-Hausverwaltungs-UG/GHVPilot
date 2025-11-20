@@ -374,7 +374,7 @@ export default function InspectionsPage() {
                 <Th>Objekt</Th>
                 <Th>Adresse</Th>
                 <Th>Datum</Th>
-                <Th>Uhrzeit</Th>
+                <Th className="hidden md:table-cell">Uhrzeit</Th>
                 <Th>Dringlichkeit</Th>
                 <Th>Mangel</Th>
                 <Th>Status</Th>
@@ -425,7 +425,9 @@ export default function InspectionsPage() {
                       </div>
                     </Td>
                     <Td className="text-gray-300">{row.date ?? "—"}</Td>
-                    <Td className="text-gray-300">{row.time ?? "—"}</Td>
+                    <Td className="text-gray-300 hidden md:table-cell">
+                      {row.time ?? "—"}
+                    </Td>
                     <Td>
                       <span
                         className={
